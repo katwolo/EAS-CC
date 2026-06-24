@@ -48,6 +48,17 @@ function doGet(e) {
     .addMetaTag('viewport','width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var result = handleRequest(String(data.action || ''), data.payload || {});
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok:false, error:String(err && err.message ? err.message : err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
 function handleRequest(action, payload) {
   payload = payload || {};
   try {
