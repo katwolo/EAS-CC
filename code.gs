@@ -20,7 +20,7 @@ var CONFIG = {
   },
   cols: {
     usuaris:   { id:'id', nom:'nom', cognom:'cognom', correu:'correu corporatiu',
-                 username:'username', password:'password', rol:'rol', classe:'classe', moduls:'mòdul', pendents:'pendents', noMat:'no matriculat' },
+                 username:'username', password:'password', rol:'rol', classe:'classe', moduls:'mòdul', pendents:'pendents', noMat:'no matriculat', desdoblaments:'desdoblaments' },
     moduls:    { codi:'Codi', nom:'Mòdul', curs:'Curs', sheetId:'ID' },
     actInd:    { activitat:'Activitat', capacitat:'Capacitats Clau', indicador:'Indicadors', codi:'Codi Indicador', color:'Codi color' },
     indicadors:{ codi:'codi', capacitatId:'capacitatId', capacitat:'capacitat', requisit:'requisit', text:'indicador_SABER_FER', colorCap:'colorCapacitat', colorInd:'colorIndicador' }
@@ -85,8 +85,21 @@ function handleRequest(action, payload) {
       case 'saveProject':           return { ok:true, result: saveProject_(payload) };
       case 'deleteProject':         return { ok:true, deleted: deleteProject_(payload) };
       case 'getAllProfs':           return { ok:true, profs: getAllProfs_() };
-      case 'listModuleActivities': return { ok:true, activities: listModuleActivities_(payload) };
-      case 'deleteActivity':       return { ok:true, deleted: deleteActivity_(payload) };
+      case 'listModuleActivities':  return { ok:true, activities: listModuleActivities_(payload) };
+      case 'deleteActivity':        return { ok:true, deleted: deleteActivity_(payload) };
+      // admin: usuaris
+      case 'getAdminUsers':         return { ok:true, data: getAdminUsers_() };
+      case 'resetPassword':         return { ok:true, done: resetPassword_(payload) };
+      case 'changePassword':        return { ok:true, done: changePassword_(payload) };
+      case 'requestPasswordReset':  return { ok:true, done: requestPasswordReset_(payload) };
+      // admin: desdoblaments
+      case 'checkModulGrups':       return { ok:true, data: checkModulGrups_(payload) };
+      case 'getDesdoblaments':      return { ok:true, data: getDesdoblaments_(payload) };
+      case 'saveDesdoblaments':     return { ok:true, done: saveDesdoblaments_(payload) };
+      // admin: catàleg d'activitats
+      case 'listCatalogActivities': return { ok:true, activities: listCatalogActivities_() };
+      case 'saveCatalogActivity':   return { ok:true, result: saveCatalogActivity_(payload) };
+      case 'deleteCatalogActivity': return { ok:true, deleted: deleteCatalogActivity_(payload) };
       default: return { ok:false, error:'Acció desconeguda: ' + action };
     }
   } catch (err) { return { ok:false, error:String(err && err.message ? err.message : err) }; }
@@ -137,7 +150,8 @@ function loginUser_(p){
   for(var i=0;i<rows.length;i++){ var u=rows[i];
     if(String(u[c.username]).trim()===username && String(u[c.password])===password){
       return { id:String(u[c.id]), nom:String(u[c.nom]), cognom:String(u[c.cognom]), correu:String(u[c.correu]||''),
-        username:String(u[c.username]), rol:String(u[c.rol]), classe:String(u[c.classe]||''), moduls:parseModuls_(u[c.moduls]) };
+        username:String(u[c.username]), rol:String(u[c.rol]), classe:String(u[c.classe]||''), moduls:parseModuls_(u[c.moduls]),
+        mustChangePassword: String(u[c.password])==='1234' };
     }
   }
   throw new Error('Usuari o contrasenya incorrectes.');
@@ -259,7 +273,8 @@ function classStudents_(classe){
 }
 function getStudents_(p){
   var classe=String(p.classe||'').trim(), moduleCodi=normVal_(p.moduleCodi);
-  var c=CONFIG.cols.usuaris, regular=[], pendents=[], noMatriculats=[];
+  var grup=(p.grup!==undefined&&p.grup!==null)?Number(p.grup):null;
+  var c=CONFIG.cols.usuaris, regular=[], pendents=[], noMatriculats=[], altreGrup=[];
   readMain_('usuaris').rows.forEach(function(u){
     if(String(u[c.rol])!=='alumne')return;
     var ucl=String(u[c.classe]).trim();
@@ -267,15 +282,19 @@ function getStudents_(p){
     if(ucl===classe){
       var noMatList=String(u[c.noMat]||'').split(',').map(normVal_);
       if(moduleCodi && noMatList.indexOf(moduleCodi)>-1){ base.noMat=true; noMatriculats.push(base); }
-      else regular.push(base);
+      else if(grup && grup>0 && moduleCodi){
+        var desd=parseDesdoblaments_(String(u[c.desdoblaments]||''));
+        if(desd[moduleCodi] && desd[moduleCodi]!==grup){ base.altreGrup=true; altreGrup.push(base); }
+        else regular.push(base);
+      } else { regular.push(base); }
     } else {
       var pend=String(u[c.pendents]||'').split(',').map(normVal_);
       if(moduleCodi && pend.indexOf(moduleCodi)>-1){ base.pendent=true; pendents.push(base); }
     }
   });
   var bySort=function(a,b){return (a.cognom+a.nom).localeCompare(b.cognom+b.nom);};
-  regular.sort(bySort); pendents.sort(bySort); noMatriculats.sort(bySort);
-  return { regular:regular, pendents:pendents, noMatriculats:noMatriculats };
+  regular.sort(bySort); pendents.sort(bySort); noMatriculats.sort(bySort); altreGrup.sort(bySort);
+  return { regular:regular, pendents:pendents, noMatriculats:noMatriculats, altreGrup:altreGrup };
 }
 
 /* ============== ROSTER al Sheet de mòdul ============== */
@@ -689,6 +708,149 @@ function deleteActivity_(p){
   var v=sh.getDataRange().getValues();
   for(var i=v.length-1;i>=1;i--){ if(String(v[i][0]||'').trim()===nom) sh.deleteRow(i+1); }
   return true;
+}
+
+/* ============== HELPERS DESDOBLAMENTS ============== */
+function parseDesdoblaments_(raw){
+  var map={};
+  String(raw||'').split(',').forEach(function(pair){
+    var p=pair.trim().split(':');
+    if(p.length===2&&p[0].trim()&&p[1].trim()) map[p[0].trim()]=Number(p[1].trim());
+  });
+  return map;
+}
+function serializeDesdoblaments_(map){
+  return Object.keys(map).filter(function(k){return map[k]>0;}).map(function(k){return k+':'+map[k];}).join(',');
+}
+
+/* ============== GESTIÓ D'USUARIS (ADMIN) ============== */
+function getAdminUsers_(){
+  var c=CONFIG.cols.usuaris, admins=[], professors=[], alumnes=[];
+  readMain_('usuaris').rows.forEach(function(u){
+    var obj={id:String(u[c.id]),nom:String(u[c.nom]),cognom:String(u[c.cognom]),
+      username:String(u[c.username]),rol:String(u[c.rol]),classe:String(u[c.classe]||''),
+      moduls:parseModuls_(u[c.moduls])};
+    var r=String(u[c.rol]);
+    if(r==='admin') admins.push(obj);
+    else if(r==='professor') professors.push(obj);
+    else if(r==='alumne') alumnes.push(obj);
+  });
+  var bySort=function(a,b){return (a.cognom+a.nom).localeCompare(b.cognom+b.nom);};
+  admins.sort(bySort); professors.sort(bySort); alumnes.sort(bySort);
+  return { admins:admins, professors:professors, alumnes:alumnes };
+}
+function resetPassword_(p){
+  var c=CONFIG.cols.usuaris;
+  var data=readMain_('usuaris'); var pwCol=colIndex_(data.headers,c.password);
+  if(pwCol<0) throw new Error('No s\'ha trobat la columna password.');
+  var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
+  data.rows.forEach(function(u){ if(String(u[c.id])===String(p.userId)) sh.getRange(u.__row,pwCol).setValue(String(p.password||'')); });
+  return true;
+}
+function changePassword_(p){
+  var c=CONFIG.cols.usuaris;
+  var data=readMain_('usuaris'); var pwCol=colIndex_(data.headers,c.password);
+  if(pwCol<0) throw new Error('No s\'ha trobat la columna password.');
+  var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name); var found=false;
+  data.rows.forEach(function(u){
+    if(String(u[c.id])!==String(p.userId)) return;
+    if(String(u[c.password])!==String(p.oldPassword)) throw new Error('La contrasenya actual no és correcta.');
+    sh.getRange(u.__row,pwCol).setValue(String(p.newPassword||'')); found=true;
+  });
+  if(!found) throw new Error('Usuari no trobat.');
+  return true;
+}
+function requestPasswordReset_(p){
+  var c=CONFIG.cols.usuaris; var rows=readMain_('usuaris').rows;
+  var requester=null, adminCorreu=null;
+  rows.forEach(function(u){ if(String(u[c.id])===String(p.userId)) requester=u; });
+  rows.forEach(function(u){ if(String(u[c.rol])==='admin'&&String(u[c.correu]).trim()&&!adminCorreu) adminCorreu=String(u[c.correu]).trim(); });
+  if(!requester) throw new Error('Usuari no trobat.');
+  if(!adminCorreu) throw new Error('No s\'ha trobat cap adreça de correu d\'administrador.');
+  var nom=String(requester[c.nom])+' '+String(requester[c.cognom]);
+  var username=String(requester[c.username]);
+  MailApp.sendEmail(adminCorreu,'[EAS CC] Sol·licitud de restabliment de contrasenya',
+    'L\'usuari '+nom+' ('+username+') ha sol·licitat que li restabliu la contrasenya a l\'aplicació EAS CC.');
+  return true;
+}
+
+/* ============== GESTIÓ DE DESDOBLAMENTS (ADMIN) ============== */
+function checkModulGrups_(p){
+  var c=CONFIG.cols.usuaris; var classe=String(p.classe||'').trim(); var moduleCodi=normVal_(p.moduleCodi);
+  var hasGroups=false;
+  readMain_('usuaris').rows.forEach(function(u){
+    if(String(u[c.rol])!=='alumne'||String(u[c.classe]).trim()!==classe) return;
+    var desd=parseDesdoblaments_(String(u[c.desdoblaments]||''));
+    if(desd[moduleCodi]) hasGroups=true;
+  });
+  return { hasGroups:hasGroups };
+}
+function getDesdoblaments_(p){
+  var c=CONFIG.cols.usuaris; var classe=String(p.classe||'').trim(); var moduleCodi=normVal_(p.moduleCodi);
+  var out=[];
+  readMain_('usuaris').rows.forEach(function(u){
+    if(String(u[c.rol])!=='alumne'||String(u[c.classe]).trim()!==classe) return;
+    var desd=parseDesdoblaments_(String(u[c.desdoblaments]||''));
+    out.push({id:String(u[c.id]),nom:String(u[c.nom]),cognom:String(u[c.cognom]),grup:desd[moduleCodi]||null});
+  });
+  out.sort(function(a,b){return (a.cognom+a.nom).localeCompare(b.cognom+b.nom);});
+  return out;
+}
+function saveDesdoblaments_(p){
+  var c=CONFIG.cols.usuaris; var moduleCodi=normVal_(p.moduleCodi);
+  var data=readMain_('usuaris'); var desdCol=colIndex_(data.headers,c.desdoblaments);
+  if(desdCol<0) throw new Error('No s\'ha trobat la columna desdoblaments al full Usuaris. Afegeix-la primer.');
+  var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
+  var assignMap={}; (p.assignments||[]).forEach(function(a){ assignMap[String(a.studentId)]=a.grup; });
+  data.rows.forEach(function(u){
+    var uid=String(u[c.id]); if(!(uid in assignMap)) return;
+    var desd=parseDesdoblaments_(String(u[c.desdoblaments]||''));
+    var g=assignMap[uid];
+    if(g&&Number(g)>0) desd[moduleCodi]=Number(g); else delete desd[moduleCodi];
+    sh.getRange(u.__row,desdCol).setValue(serializeDesdoblaments_(desd));
+  });
+  return true;
+}
+
+/* ============== GESTIÓ DEL CATÀLEG D'ACTIVITATS (ADMIN) ============== */
+function listCatalogActivities_(){
+  var cat=indicatorCatalog_(); var blocks=readActivityBlocks_().blocks;
+  return Object.keys(blocks).map(function(nom){
+    return { nom:nom, indicators:blocks[nom].map(function(codi){
+      return cat[codi]||{codi:codi,text:'(no trobat)',colorInd:'#cccccc',capacitat:'?',capacitatId:capOf_(codi)};
+    })};
+  }).sort(function(a,b){ return a.nom.localeCompare(b.nom); });
+}
+function saveCatalogActivity_(p){
+  var c=CONFIG.cols.actInd; var sh=getSS_().getSheetByName(CONFIG.sheets.actInd.name);
+  if(!sh) throw new Error('No s\'ha trobat el full "'+CONFIG.sheets.actInd.name+'".');
+  var nom=String(p.nom||'').trim(); if(!nom) throw new Error('Cal un nom d\'activitat.');
+  var codes=(p.indicators||[]).map(normVal_).filter(Boolean);
+  if(!codes.length) throw new Error('Tria almenys un indicador.');
+  var cat=indicatorCatalog_();
+  // esborra oldNom si és diferent
+  if(p.oldNom && String(p.oldNom).trim()!==nom) _deleteCatalogRows_(sh, String(p.oldNom).trim(), c.activitat);
+  // esborra i reescriu nom actual
+  _deleteCatalogRows_(sh, nom, c.activitat);
+  var rows=codes.map(function(codi){
+    var ind=cat[codi]||{}; var capId=ind.capacitatId||capOf_(codi);
+    return [nom, ind.capacitat||CAP_NOMS[capId]||capId, ind.text||'', codi, ind.colorInd||''];
+  });
+  sh.getRange(sh.getLastRow()+1,1,rows.length,5).setValues(rows);
+  return { nom:nom, n:codes.length };
+}
+function deleteCatalogActivity_(p){
+  var c=CONFIG.cols.actInd; var sh=getSS_().getSheetByName(CONFIG.sheets.actInd.name);
+  if(!sh) return true;
+  _deleteCatalogRows_(sh, String(p.nom||'').trim(), c.activitat);
+  return true;
+}
+function _deleteCatalogRows_(sh, nom, actCol){
+  var headers=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(function(h){return String(h).trim();});
+  var ci=colIndex_(headers,actCol);
+  if(ci<0) return;
+  var v=sh.getDataRange().getValues();
+  for(var i=v.length-1;i>=1;i--){ if(String(v[i][ci-1]||'').trim()===nom) sh.deleteRow(i+1); }
 }
 
 /*************************************************************************

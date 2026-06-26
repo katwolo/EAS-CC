@@ -197,6 +197,7 @@
       <span class="modepill" id="modePill" onclick="toggleMode()"></span>
       <span class="modepill" id="themePill" onclick="toggleTheme()"></span>
       <div class="who"><div class="n" id="uName"></div><div class="r" id="uRole"></div></div>
+      <button class="btn sm ghost" id="btnPerfil" style="display:none" onclick="renderPerfil()">Perfil</button>
       <button class="btn sm ghost" onclick="logout()">Sortir</button>
     </div>
   </header>
@@ -223,6 +224,9 @@ var state = { user:null, device:'pc', theme:'dark', view:'inici',
   // wizard
   step:1, curs:null, classe:null, module:null, moduleProjects:null, projecte:null, activity:null, data:null,
   indicators:[], curInd:0, students:null, grades:{}, editBlock:null,
+  grup:null, hasGrups:false,
+  // admin
+  adminTab:'usuaris',
   // dashboards (mòdul obligatori)
   iniciClasse:null, iniciModul:null, resumClasse:null, resumModul:null, evModul:null, projModul:null, activModul:null };
 
@@ -271,18 +275,26 @@ function enterApp(){
   var u=state.user;
   $('login').style.display='none';$('app').style.display='flex';
   $('uName').textContent=(u.nom+' '+u.cognom).trim();$('uRole').textContent=u.rol;applyMode();applyTheme();
+  var bp=$('btnPerfil'); if(bp) bp.style.display='';
+  if(u.mustChangePassword){ renderForceChangePassword(); return; }
   if(u.rol!=='professor'&&u.rol!=='admin'){
     $('nav').innerHTML='';
     $('content').innerHTML='<div class="empty">Aquesta fase es centra en el rol <b>professor</b>. Els rols admin/alumne es reintegraran més endavant.</div>';
     return;
   }
-  var navs=buildNav();
+  buildNav();
   var mobileOnly=(state.device==='mobile');
-  go(mobileOnly?'registrar':'inici');
+  var defaultView=(u.rol==='admin')?'usuaris':(mobileOnly?'registrar':'inici');
+  go(defaultView);
 }
 function buildNav(){
-  var navs=[['inici','Inici'],['registrar','Enregistrar evidències'],['evidencies','Evidències realitzades'],['resum','Resum classe'],['activitats','Activitats'],['projectes','Projectes']];
-  if(state.device==='mobile') navs=[['registrar','Enregistrar evidències']];
+  var navs;
+  if(state.user&&state.user.rol==='admin'){
+    navs=[['usuaris',"Gestió d'usuaris"],['actcataleg',"Gestió d'activitats"]];
+  } else {
+    navs=[['inici','Inici'],['registrar','Enregistrar evidències'],['evidencies','Evidències realitzades'],['resum','Resum classe'],['activitats','Activitats'],['projectes','Projectes']];
+    if(state.device==='mobile') navs=[['registrar','Enregistrar evidències']];
+  }
   $('nav').innerHTML=navs.map(function(n){return '<button data-v="'+n[0]+'" onclick="go(\''+n[0]+'\')">'+n[1]+'</button>';}).join('');
   return navs;
 }
@@ -295,6 +307,8 @@ function go(view){
   if(view==='resum') return renderResum();
   if(view==='activitats') return renderActivitats();
   if(view==='projectes') return renderProjectes();
+  if(view==='usuaris') return renderUsuaris();
+  if(view==='actcataleg') return renderActCataleg();
 }
 
 /* ---------- selectors compartits (classe + mòdul) ---------- */
@@ -593,6 +607,7 @@ function renderRegistrar(){
 }
 function resetWizard(){
   state.editBlock=null;state.step=1;state.curs=null;state.classe=null;state.module=null;state.moduleProjects=null;state.projecte=null;state.activity=null;
+  state.grup=null;state.hasGrups=false;
   state.data=new Date().toISOString().slice(0,10);state.indicators=[];state.curInd=0;state.students=null;state.grades={};
   renderStep();
 }
@@ -628,17 +643,33 @@ async function stepClasse(){
 }
 function pickClasse(c){state.classe=c;state.module=null;state.step=3;renderStep();}
 async function stepModul(){
+  if(state.module&&state.hasGrups&&state.grup===null){
+    var gopts='<button class="opt center" onclick="pickGrup(0)"><div class="big">📋</div><div class="t">Classe completa</div><div class="d">Avalua tots els alumnes</div></button>'+
+      '<button class="opt center" onclick="pickGrup(1)"><div class="big" style="font-family:var(--mono)">G1</div><div class="t">Grup 1</div><div class="d">Alumnes del desdoblament 1</div></button>'+
+      '<button class="opt center" onclick="pickGrup(2)"><div class="big" style="font-family:var(--mono)">G2</div><div class="t">Grup 2</div><div class="d">Alumnes del desdoblament 2</div></button>';
+    $('step').innerHTML='<h2 class="step-title">Selecciona el grup</h2><p class="step-sub">El mòdul «'+esc(state.module.nom)+'» té desdoblaments. Tria quin grup avaluaràs.</p><div class="opts">'+gopts+'</div>';
+    return;
+  }
   loadingStep(); var r=await call('getModules',{user:state.user,curs:state.curs}); if(!r.ok) return showError(r.error);
   var opts=r.modules.map(function(m){return '<button class="opt" onclick=\'pickModul('+j(m)+')\'><div class="t">'+esc(m.nom)+'</div><div class="d mono">codi: '+esc(m.codi)+'</div></button>';}).join('');
   $('step').innerHTML='<h2 class="step-title">Selecciona el mòdul</h2><p class="step-sub">Mòduls de curs '+esc(state.curs)+' assignats a tu.</p><div class="opts">'+(opts||'<div class="empty">No tens mòduls de curs '+esc(state.curs)+'.</div>')+'</div>';
 }
-async function pickModul(m){
-  state.module=m;state.projecte=null;state.activity=null;state.moduleProjects=null;
-  loadingStep('Comprovant projectes del mòdul…');
-  var r=await call('getProjects',{user:state.user,moduleCodi:m.codi});
-  state.moduleProjects=(r.ok?r.projects:[]);
-  state.step=(state.moduleProjects.length>0)?4:5;   // si no té projectes, salta a activitat
+function pickGrup(g){
+  state.grup=g;
+  state.step=(state.moduleProjects&&state.moduleProjects.length>0)?4:5;
   renderStep();
+}
+async function pickModul(m){
+  state.module=m;state.projecte=null;state.activity=null;state.moduleProjects=null;state.grup=null;state.hasGrups=false;
+  loadingStep('Comprovant projectes i grups…');
+  var results=await Promise.all([
+    call('getProjects',{user:state.user,moduleCodi:m.codi}),
+    call('checkModulGrups',{classe:state.classe,moduleCodi:m.codi})
+  ]);
+  var rp=results[0],rg=results[1];
+  state.moduleProjects=(rp.ok?rp.projects:[]);
+  state.hasGrups=(rg.ok&&rg.data&&rg.data.hasGroups);
+  state.step=3; renderStep();
 }
 async function stepProjecte(){
   var projects=state.moduleProjects||[];
@@ -711,7 +742,7 @@ function pickActivitat(a){state.activity=a;state.step=6;if(!state.editBlock)stat
 async function stepAvaluacio(){
   loadingStep('Carregant indicadors i alumnes…');
   var ri=await call('getActivityIndicators',{activitat:state.activity,moduleCodi:state.module.codi}); if(!ri.ok) return showError(ri.error);
-  var rs=await call('getStudents',{classe:state.classe,moduleCodi:state.module.codi}); if(!rs.ok) return showError(rs.error);
+  var rs=await call('getStudents',{classe:state.classe,moduleCodi:state.module.codi,grup:state.grup}); if(!rs.ok) return showError(rs.error);
   state.indicators=ri.indicators; state.students=rs.data;
   state.indicators.forEach(function(ind){ if(!state.grades[ind.codi]) state.grades[ind.codi]={}; });
   paintAvaluacio();
@@ -734,8 +765,9 @@ function paintAvaluacio(){
   }).join('');
   var btns=function(stId){return '<div class="gbtns">'+NB().map(function(b){var on=state.grades[ind.codi][stId]===b.value;var na=(b.value==='NA')?' na':'';var bg=(b.value==='NA')?'':('background:'+b.color);return '<button class="gbtn'+na+(on?' on':'')+'" style="'+bg+'" title="'+esc(b.label)+'" onclick="setGrade(\''+stId+'\',\''+b.value+'\')"></button>';}).join('')+'</div>';};
   var lines=function(arr,p){return arr.map(function(s){return '<div class="student-line"><span class="nm">'+esc(s.cognom)+', '+esc(s.nom)+(p?'<span class="ptag">pendent · '+esc(s.classe)+'</span>':'')+'</span>'+btns(s.id)+'</div>';}).join('');};
-  var linesOff=function(arr){return arr.map(function(s){return '<div class="student-line off"><span class="nm">'+esc(s.cognom)+', '+esc(s.nom)+'<span class="ntag">no matriculat</span></span></div>';}).join('');};
+  var linesOff=function(arr,tag){return arr.map(function(s){return '<div class="student-line off"><span class="nm">'+esc(s.cognom)+', '+esc(s.nom)+'<span class="ntag">'+(tag||'no matriculat')+'</span></span></div>';}).join('');};
   var noMat=state.students.noMatriculats||[];
+  var altreGrup=state.students.altreGrup||[];
   var done=Object.keys(state.grades[ind.codi]).filter(function(k){return state.grades[ind.codi][k]!=null;}).length;
   var projTxt=state.projecte?(' · P'+esc(state.projecte.num)):'';
   var saveBtn = stt.complete
@@ -751,7 +783,8 @@ function paintAvaluacio(){
       '</div><div class="spacer"></div><span class="counter">'+done+' / '+all.length+'</span></div>'+
       lines(state.students.regular||[],false)+
       ((state.students.pendents&&state.students.pendents.length)?('<div class="subhead">Pendents (altres grups)</div>'+lines(state.students.pendents,true)):'')+
-      ((noMat.length)?('<div class="subhead">No matriculats / aprovats (no avaluables)</div>'+linesOff(noMat)):'')+'</div>'+
+      ((noMat.length)?('<div class="subhead">No matriculats / aprovats (no avaluables)</div>'+linesOff(noMat)):'')+
+      ((altreGrup.length)?('<div class="subhead">Altre grup (no avaluables)</div>'+linesOff(altreGrup,'altre grup')):'')+'</div>'+
     '<div class="legend">'+NB().map(function(b){var sw=(b.value==='NA')?'background:repeating-linear-gradient(45deg,var(--stripe-a),var(--stripe-a) 4px,var(--stripe-b) 4px,var(--stripe-b) 8px)':'background:'+b.color;return '<span><i style="'+sw+'"></i>'+esc(b.label)+'</span>';}).join('')+'</div>'+
     (stt.complete?'':'<div class="muted" style="font-size:12.5px;margin-top:10px">Has d\'avaluar tots els indicadors per a tots els alumnes abans de desar. Pendents: '+stt.pending.join(', ')+'</div>')+
     '<div class="row" style="margin-top:18px"><div class="spacer"></div><button class="btn sm ghost" onclick="go(\'registrar\')">Cancel·lar</button>'+saveBtn+'</div>';
@@ -763,11 +796,272 @@ async function saveRegistre(){
   if(!stt.complete){ return showError('Has d\'avaluar tots els indicadors per a tots els alumnes abans de desar (falten '+(stt.need-stt.done)+').'); }
   var pl={ curs:state.curs, classe:state.classe, moduleCodi:state.module.codi,
     projecteNum:state.projecte?state.projecte.num:'', projecteNom:state.projecte?state.projecte.nom:'',
-    activitat:state.activity, data:state.data, grades:state.grades, createdBy:state.user.username };
+    activitat:state.activity, data:state.data, grades:state.grades, createdBy:state.user.username,
+    grup:state.grup||null };
   if(state.editBlock) pl.blockCol=state.editBlock.startCol;
   var r=await call('saveRegistre', pl);
   if(!r.ok) return showError(r.error);
   toast(r.result.missatge||'Desat.'); state.editBlock=null; go('evidencies');
+}
+
+/* ====================== FORÇA CANVI DE CONTRASENYA ====================== */
+function renderForceChangePassword(){
+  $('nav').innerHTML='';
+  $('content').innerHTML=
+    '<div style="max-width:480px;margin:40px auto">'+
+    '<div class="panel">'+
+      '<h2 style="margin-bottom:8px">Benvingut/da!</h2>'+
+      '<p style="color:var(--muted);font-size:14px;margin-bottom:20px">Les contrasenyes d\'aquesta plataforma han de ser úniques i fàcils de recordar per a tu, <strong>però no les mateixes que fas servir en altres llocs</strong> (correu, xarxes socials, etc.).</p>'+
+      '<p style="color:var(--muted);font-size:14px;margin-bottom:20px">Per entrar a l\'aplicació, tria una contrasenya personal nova.</p>'+
+      '<label>Nova contrasenya</label>'+
+      '<input id="fcp_new" class="field" type="password" placeholder="Nova contrasenya" style="width:100%">'+
+      '<label>Confirma la contrasenya</label>'+
+      '<input id="fcp_conf" class="field" type="password" placeholder="Repeteix la contrasenya" style="width:100%">'+
+      '<button class="btn" style="margin-top:18px" onclick="doForceChangePassword()">Establir contrasenya i entrar</button>'+
+    '</div></div>';
+}
+async function doForceChangePassword(){
+  var np=($('fcp_new')||{}).value||''; var cp=($('fcp_conf')||{}).value||'';
+  if(!np) return showError('Introdueix una nova contrasenya.');
+  if(np!==cp) return showError('Les contrasenyes no coincideixen.');
+  if(np==='1234') return showError('Has de triar una contrasenya diferent de la inicial.');
+  var r=await call('changePassword',{userId:state.user.id,oldPassword:'1234',newPassword:np});
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error canviant la contrasenya.');
+  state.user.mustChangePassword=false;
+  toast('Contrasenya establerta. Benvingut/da!');
+  buildNav();
+  var mobileOnly=(state.device==='mobile');
+  var defaultView=(state.user.rol==='admin')?'usuaris':(mobileOnly?'registrar':'inici');
+  go(defaultView);
+}
+
+/* ====================== PERFIL ====================== */
+function renderPerfil(){
+  openModal(
+    '<h3>Perfil</h3>'+
+    '<p class="muted" style="font-size:13px;margin-bottom:18px">Usuari: <b>'+esc(state.user.username)+'</b> · '+esc(state.user.nom)+' '+esc(state.user.cognom)+'</p>'+
+    '<h4 style="margin:0 0 12px">Canviar contrasenya</h4>'+
+    '<label>Contrasenya actual</label><input id="pf_old" class="field" type="password" style="width:100%" placeholder="Contrasenya actual">'+
+    '<label>Nova contrasenya</label><input id="pf_new" class="field" type="password" style="width:100%" placeholder="Nova contrasenya">'+
+    '<label>Confirma</label><input id="pf_conf" class="field" type="password" style="width:100%" placeholder="Repeteix la nova contrasenya">'+
+    '<div class="actions" style="flex-direction:column;gap:8px">'+
+      '<div style="display:flex;gap:10px;width:100%">'+
+        '<button class="btn ghost" style="flex:1;margin:0" onclick="closeModal()">Cancel·la</button>'+
+        '<button class="btn" style="flex:1;margin:0" onclick="doChangePwd()">Canviar contrasenya</button>'+
+      '</div>'+
+      '<button class="btn ghost" style="width:100%;margin:0;font-size:13px" onclick="doRequestReset()">Sol·licitar restabliment per correu</button>'+
+    '</div>'
+  );
+}
+async function doChangePwd(){
+  var old=($('pf_old')||{}).value||'';
+  var np=($('pf_new')||{}).value||'';
+  var cp=($('pf_conf')||{}).value||'';
+  if(!old||!np) return showError('Omple tots els camps.');
+  if(np!==cp) return showError('Les contrasenyes noves no coincideixen.');
+  var r=await call('changePassword',{userId:state.user.id,oldPassword:old,newPassword:np});
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error canviant la contrasenya.');
+  closeModal(); toast('Contrasenya actualitzada.');
+}
+async function doRequestReset(){
+  var r=await call('requestPasswordReset',{userId:state.user.id});
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error enviant la sol·licitud.');
+  closeModal(); toast('Sol·licitud enviada a l\'administrador per correu.');
+}
+
+/* ====================== ADMIN: GESTIÓ D'USUARIS ====================== */
+async function renderUsuaris(){
+  $('content').innerHTML=
+    '<h2 class="page-title">Gestió d\'usuaris</h2>'+
+    '<div class="row" style="margin-bottom:16px;gap:6px">'+
+      '<button class="btn sm '+(state.adminTab==='usuaris'?'':'ghost')+'" onclick="setAdminTab(\'usuaris\')">Usuaris</button>'+
+      '<button class="btn sm '+(state.adminTab==='desdoblaments'?'':'ghost')+'" onclick="setAdminTab(\'desdoblaments\')">Desdoblaments</button>'+
+    '</div>'+
+    '<div id="adminBody"><div class="empty">Carregant…</div></div>';
+  var r=await call('getAdminUsers');
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error carregant usuaris.');
+  var ad=r.data;
+  if(state.adminTab==='usuaris') renderAdminUsuarisTab(ad);
+  else renderAdminDesdoblTab(ad);
+}
+function setAdminTab(t){ state.adminTab=t; renderUsuaris(); }
+function renderAdminUsuarisTab(ad){
+  var allUsers=[].concat(ad.admins||[]).concat(ad.professors||[]).concat(ad.alumnes||[]);
+  var rows=allUsers.map(function(u){
+    return '<tr><td>'+esc(u.cognom)+', '+esc(u.nom)+'</td><td class="mono">'+esc(u.username)+'</td>'+
+      '<td><span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">'+esc(u.rol)+'</span></td>'+
+      '<td>'+esc(u.classe||'—')+'</td>'+
+      '<td style="text-align:right"><button class="btn sm ghost" onclick=\'openResetPwd('+j({id:u.id,nom:u.nom,cognom:u.cognom,username:u.username})+')\'">Restablir</button></td></tr>';
+  }).join('');
+  $('adminBody').innerHTML=
+    '<div class="panel" style="padding:6px 8px;overflow:auto">'+
+    '<table><thead><tr><th>Nom</th><th>Usuari</th><th>Rol</th><th>Classe</th><th></th></tr></thead>'+
+    '<tbody>'+(rows||'<tr><td colspan="5" class="empty">Cap usuari.</td></tr>')+'</tbody></table></div>';
+}
+function openResetPwd(u){
+  openModal('<h3>Restablir contrasenya</h3>'+
+    '<p class="muted">Usuari: <b>'+esc(u.username)+'</b> · '+esc(u.nom)+' '+esc(u.cognom)+'</p>'+
+    '<label>Nova contrasenya</label><input id="rp_pwd" class="field" type="text" style="width:100%" placeholder="Nova contrasenya" value="1234">'+
+    '<div class="actions"><button class="btn ghost" onclick="closeModal()">Cancel·la</button>'+
+    '<button class="btn" onclick="doResetPwd(\''+esc(u.id)+'\')">Restablir</button></div>');
+}
+async function doResetPwd(uid){
+  var pwd=($('rp_pwd')||{}).value||'';
+  if(!pwd) return showError('Introdueix una nova contrasenya.');
+  var r=await call('resetPassword',{userId:uid,password:pwd});
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error restablint la contrasenya.');
+  closeModal(); toast('Contrasenya restablerta.');
+}
+async function renderAdminDesdoblTab(ad){
+  var classes=[]; var seen={};
+  [].concat(ad.alumnes||[]).forEach(function(u){ if(u.classe&&!seen[u.classe]){seen[u.classe]=true;classes.push(u.classe);} });
+  classes.sort();
+  if(!state._desdClasse&&classes.length) state._desdClasse=classes[0];
+  var mods=[]; var seenM={};
+  [].concat(ad.professors||[]).concat(ad.admins||[]).forEach(function(u){
+    (u.moduls||[]).forEach(function(m){ if(!seenM[m.codi]){seenM[m.codi]=true;mods.push(m);} });
+  });
+  mods.sort(function(a,b){return a.codi.localeCompare(b.codi);});
+  if(!state._desdModul&&mods.length) state._desdModul=mods[0].codi;
+  var selCl='<select class="field inline" onchange="state._desdClasse=this.value;renderAdminDesdoblaments()">'+
+    '<option value="">— classe —</option>'+
+    classes.map(function(c){return '<option '+(c===state._desdClasse?'selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select>';
+  var selMod='<select class="field inline" onchange="state._desdModul=this.value;renderAdminDesdoblaments()">'+
+    '<option value="">— mòdul —</option>'+
+    mods.map(function(m){return '<option value="'+esc(m.codi)+'" '+(m.codi===state._desdModul?'selected':'')+'>'+esc(m.codi)+' – '+esc(m.nom)+'</option>';}).join('')+'</select>';
+  $('adminBody').innerHTML=
+    '<div class="panel"><div class="row">'+
+      '<label style="margin:0">Classe</label>'+selCl+
+      '<label style="margin:0 0 0 8px">Mòdul</label>'+selMod+
+    '</div></div>'+
+    '<div id="desdBody"><div class="empty">Tria classe i mòdul per gestionar els desdoblaments.</div></div>';
+  if(state._desdClasse&&state._desdModul) renderAdminDesdoblaments();
+}
+async function renderAdminDesdoblaments(){
+  if(!state._desdClasse||!state._desdModul){$('desdBody').innerHTML='<div class="empty">Tria classe i mòdul.</div>';return;}
+  $('desdBody').innerHTML='<div class="empty">Carregant…</div>';
+  var r=await call('getDesdoblaments',{classe:state._desdClasse,moduleCodi:state._desdModul});
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error carregant desdoblaments.');
+  var students=r.data||[];
+  if(!students.length){$('desdBody').innerHTML='<div class="empty">No hi ha alumnes en aquesta classe.</div>';return;}
+  state._desdAssign={};
+  state._desdStudents=students;
+  students.forEach(function(s){ state._desdAssign[s.id]=s.grup||null; });
+  paintDesdoblaments(students);
+}
+function paintDesdoblaments(students){
+  var rows=students.map(function(s){
+    var g=state._desdAssign[s.id];
+    return '<div class="student-line"><span class="nm">'+esc(s.cognom)+', '+esc(s.nom)+'</span>'+
+      '<div style="display:flex;gap:6px">'+
+        '<button class="btn sm '+(g===1?'':'ghost')+'" onclick="setDesdGrup(\''+esc(s.id)+'\',1)">G1</button>'+
+        '<button class="btn sm '+(g===2?'':'ghost')+'" onclick="setDesdGrup(\''+esc(s.id)+'\',2)">G2</button>'+
+        '<button class="btn sm ghost" onclick="setDesdGrup(\''+esc(s.id)+'\',null)" style="'+(g===null?'border-color:var(--accent)':'')+'">—</button>'+
+      '</div></div>';
+  }).join('');
+  $('desdBody').innerHTML=
+    '<div class="panel">'+rows+'</div>'+
+    '<div class="row" style="margin-top:12px"><div class="spacer"></div>'+
+    '<button class="btn sm" onclick="saveDesdoblaments()">Desar desdoblaments</button></div>';
+}
+function setDesdGrup(id,g){ state._desdAssign[id]=g; paintDesdoblaments(state._desdStudents||[]); }
+async function saveDesdoblaments(){
+  var assignments=Object.keys(state._desdAssign).map(function(k){return {studentId:k,grup:state._desdAssign[k]};});
+  var r=await call('saveDesdoblaments',{assignments:assignments,moduleCodi:state._desdModul});
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error desant desdoblaments.');
+  toast('Desdoblaments desats.'); renderAdminDesdoblaments();
+}
+
+/* ====================== ADMIN: GESTIÓ D'ACTIVITATS (CATÀLEG) ====================== */
+var catEdit={ nom:'', _oldNom:null, caps:[], open:null, selected:{} };
+async function renderActCataleg(){
+  $('content').innerHTML=
+    '<h2 class="page-title">Gestió d\'activitats (catàleg)</h2>'+
+    '<p class="page-sub">Activitats del catàleg comú. Apareixen en tots els mòduls per a tots els professors.</p>'+
+    '<div class="panel"><div class="row"><div class="spacer"></div>'+
+    '<button class="btn sm" onclick="openEditCatalogActivity(null)">+ Nova activitat</button></div></div>'+
+    '<div id="catBody"><div class="empty">Carregant…</div></div>';
+  var r=await call('listCatalogActivities');
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error carregant activitats.');
+  if(!r.activities||!r.activities.length){
+    $('catBody').innerHTML='<div class="empty">Cap activitat al catàleg. Fes clic a «+ Nova activitat» per crear-ne una.</div>';
+    return;
+  }
+  $('catBody').innerHTML=r.activities.map(function(a){
+    return '<div class="panel"><div class="row">'+
+      '<div style="min-width:0"><h3 style="margin:0;font-size:15px">'+esc(a.nom)+'</h3>'+
+      '<div class="muted" style="font-size:12.5px;margin-top:5px">'+
+        a.indicators.length+' indicador'+(a.indicators.length===1?'':'s')+': '+
+        a.indicators.map(function(i){return '<span class="mono" style="font-size:11px;background:var(--surface-3);padding:2px 6px;border-radius:4px;margin-right:3px">'+esc(i.codi)+'</span>';}).join('')+
+      '</div></div>'+
+      '<div class="spacer"></div>'+
+      '<button class="btn sm ghost" onclick=\'openEditCatalogActivity('+j(a)+')\'>✏️ Editar</button> '+
+      '<button class="btn sm danger" onclick="askDeleteCatalogActivity(\''+q(a.nom)+'\')">🗑</button>'+
+      '</div></div>';
+  }).join('');
+}
+async function openEditCatalogActivity(a){
+  $('content').innerHTML='<div class="empty">Carregant indicadors…</div>';
+  var rp=await call('getCapabilities',{}); if(!rp.ok) return showError(rp.error);
+  catEdit={ nom:a?a.nom:'', _oldNom:a?a.nom:null, caps:rp.caps, open:null, selected:{} };
+  if(a){ a.indicators.forEach(function(ind){ catEdit.selected[ind.codi]=true; }); }
+  paintCatalegForm();
+}
+function toggleCatCap(ci){ catEdit.open=(catEdit.open===ci?null:ci); paintCatalegForm(); }
+function toggleCatInd(code){ catEdit.selected[code]=!catEdit.selected[code]; paintCatalegForm(); }
+function paintCatalegForm(){
+  var isEdit=!!catEdit._oldNom;
+  var sel=Object.keys(catEdit.selected).filter(function(k){return catEdit.selected[k];});
+  var capHtml=catEdit.caps.map(function(c,ci){
+    var open=(catEdit.open===ci);
+    var chosen=c.indicators.filter(function(ind){return catEdit.selected[ind.codi];}).length;
+    var head='<button class="capHead" style="border-left:5px solid '+esc(c.color)+'" onclick="toggleCatCap('+ci+')">'+
+      '<span class="arrow">'+(open?'▾':'▸')+'</span><span class="cn">'+esc(c.capacitat)+'</span>'+
+      (chosen?'<span class="badge">'+chosen+'</span>':'')+'</button>';
+    var body=open?('<div class="capBody">'+c.indicators.map(function(ind){var on=catEdit.selected[ind.codi];
+      return '<label class="indpick"><input type="checkbox" '+(on?'checked':'')+' onclick="toggleCatInd(\''+esc(ind.codi)+'\')"> '+
+        '<span class="swatch" style="background:'+esc(ind.colorInd||c.color)+'"></span>'+
+        '<span class="code">'+esc(ind.codi)+'</span> <span>'+esc(ind.text)+'</span></label>';
+    }).join('')+'</div>'):'';
+    return '<div class="capwrap">'+head+body+'</div>';
+  }).join('');
+  $('content').innerHTML=
+    '<h2 class="page-title">'+(isEdit?'Editar activitat del catàleg':'Nova activitat del catàleg')+'</h2>'+
+    '<p class="page-sub">Apareixerà a tots els mòduls. Els canvis no afecten registres ja desats.</p>'+
+    '<div class="panel">'+
+      '<label>Nom de l\'activitat</label>'+
+      '<input id="cat_name" class="field" style="width:100%;max-width:420px" value="'+esc(catEdit.nom)+'" oninput="catEdit.nom=this.value" placeholder="p. ex. Tutoria grupal">'+
+      '<label style="margin-top:16px">Capacitats clau i indicadors</label>'+
+      '<div class="capacc">'+capHtml+'</div>'+
+      '<div class="row" style="margin-top:18px">'+
+        '<span class="counter">'+sel.length+' indicador'+(sel.length===1?'':'s')+' triat'+(sel.length===1?'':'s')+'</span>'+
+        '<div class="spacer"></div>'+
+        '<button class="btn sm ghost" onclick="renderActCataleg()">← Tornar</button>'+
+        '<button class="btn sm" onclick="doSaveCatalogActivity()">Desar activitat</button>'+
+      '</div>'+
+    '</div>';
+}
+async function doSaveCatalogActivity(){
+  var nom=(catEdit.nom||'').trim(); if(!nom) return showError('Posa un nom a l\'activitat.');
+  var codes=Object.keys(catEdit.selected).filter(function(k){return catEdit.selected[k];});
+  if(!codes.length) return showError('Tria almenys un indicador.');
+  var payload={nom:nom,indicators:codes};
+  if(catEdit._oldNom&&catEdit._oldNom!==nom) payload.oldNom=catEdit._oldNom;
+  var r=await call('saveCatalogActivity',payload);
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error desant activitat.');
+  toast(catEdit._oldNom?'Activitat actualitzada.':'Activitat creada.');
+  renderActCataleg();
+}
+function askDeleteCatalogActivity(nom){
+  openModal('<h3>Eliminar activitat del catàleg</h3>'+
+    '<p class="muted">S\'eliminarà «'+esc(nom)+'» del catàleg comú. No esborra els registres ja desats amb aquesta activitat.</p>'+
+    '<div class="actions"><button class="btn ghost" onclick="closeModal()">Cancel·la</button>'+
+    '<button class="btn danger" onclick="doDeleteCatalogActivity(\''+q(nom)+'\')">Eliminar</button></div>');
+}
+async function doDeleteCatalogActivity(nom){
+  var r=await call('deleteCatalogActivity',{nom:nom});
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error eliminant activitat.');
+  closeModal(); toast('Activitat eliminada.'); renderActCataleg();
 }
 
 /* ====================== RADAR ====================== */
