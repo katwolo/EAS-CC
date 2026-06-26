@@ -85,6 +85,8 @@ function handleRequest(action, payload) {
       case 'saveProject':           return { ok:true, result: saveProject_(payload) };
       case 'deleteProject':         return { ok:true, deleted: deleteProject_(payload) };
       case 'getAllProfs':           return { ok:true, profs: getAllProfs_() };
+      case 'listModuleActivities': return { ok:true, activities: listModuleActivities_(payload) };
+      case 'deleteActivity':       return { ok:true, deleted: deleteActivity_(payload) };
       default: return { ok:false, error:'Acció desconeguda: ' + action };
     }
   } catch (err) { return { ok:false, error:String(err && err.message ? err.message : err) }; }
@@ -666,6 +668,26 @@ function saveProject_(p){
 function deleteProject_(p){
   var ss=openModule_(p.moduleCodi); var org=readOrg_(ss); var sh=org.sheet; var num=normVal_(p.num);
   org.rows.filter(function(r){return r.num===num;}).map(function(r){return r.__row;}).sort(function(a,b){return b-a;}).forEach(function(rw){ sh.deleteRow(rw); });
+  return true;
+}
+
+/* ============== GESTIÓ D'ACTIVITATS PRÒPIES DEL MÒDUL ============== */
+function listModuleActivities_(p){
+  var ss=openModule_(p.moduleCodi);
+  var map=readModuleActivities_(ss);
+  var cat=indicatorCatalog_();
+  return Object.keys(map).map(function(nom){
+    return { nom:nom, indicators:map[nom].map(function(codi){
+      return cat[codi]||{codi:codi,text:'(no trobat)',colorInd:'#cccccc',capacitat:'?',capacitatId:capOf_(codi)};
+    })};
+  }).sort(function(a,b){ return a.nom.localeCompare(b.nom); });
+}
+function deleteActivity_(p){
+  var ss=openModule_(p.moduleCodi);
+  var sh=ss.getSheetByName(CONFIG.modAct); if(!sh) return true;
+  var nom=String(p.nom||'').trim();
+  var v=sh.getDataRange().getValues();
+  for(var i=v.length-1;i>=1;i--){ if(String(v[i][0]||'').trim()===nom) sh.deleteRow(i+1); }
   return true;
 }
 
