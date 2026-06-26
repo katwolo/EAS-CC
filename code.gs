@@ -726,10 +726,12 @@ function serializeDesdoblaments_(map){
 /* ============== GESTIÓ D'USUARIS (ADMIN) ============== */
 function getAdminUsers_(){
   var c=CONFIG.cols.usuaris, admins=[], professors=[], alumnes=[];
+  var modIdx=modulesIndex_();
   readMain_('usuaris').rows.forEach(function(u){
+    var moduls=parseModuls_(u[c.moduls]).map(function(code){ return modIdx[code]||{codi:code,nom:code}; });
     var obj={id:String(u[c.id]),nom:String(u[c.nom]),cognom:String(u[c.cognom]),
       username:String(u[c.username]),rol:String(u[c.rol]),classe:String(u[c.classe]||''),
-      moduls:parseModuls_(u[c.moduls])};
+      moduls:moduls};
     var r=String(u[c.rol]);
     if(r==='admin') admins.push(obj);
     else if(r==='professor') professors.push(obj);
