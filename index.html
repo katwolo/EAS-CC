@@ -890,17 +890,30 @@ async function renderUsuaris(){
 }
 function setAdminTab(t){ state.adminTab=t; renderUsuaris(); }
 function renderAdminUsuarisTab(ad){
-  var allUsers=[].concat(ad.admins||[]).concat(ad.professors||[]).concat(ad.alumnes||[]);
-  var rows=allUsers.map(function(u){
+  state._adminUsers=[].concat(ad.admins||[]).concat(ad.professors||[]).concat(ad.alumnes||[]);
+  $('adminBody').innerHTML=
+    '<div class="panel" style="padding:14px 14px 6px">'+
+    '<input id="userSearch" class="field" placeholder="Cerca per nom, cognoms o classe…" oninput="filterAdminUsers()" style="width:100%;margin-bottom:0">'+
+    '</div>'+
+    '<div id="userTable"></div>';
+  filterAdminUsers();
+}
+function filterAdminUsers(){
+  var q=(($('userSearch')||{}).value||'').toLowerCase().trim();
+  var users=(state._adminUsers||[]).filter(function(u){
+    if(!q) return true;
+    return (u.nom+' '+u.cognom+' '+u.username+' '+(u.classe||'')).toLowerCase().indexOf(q)>-1;
+  });
+  var rows=users.map(function(u){
     return '<tr><td>'+esc(u.cognom)+', '+esc(u.nom)+'</td><td class="mono">'+esc(u.username)+'</td>'+
       '<td><span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">'+esc(u.rol)+'</span></td>'+
       '<td>'+esc(u.classe||'—')+'</td>'+
       '<td style="text-align:right"><button class="btn sm ghost" onclick=\'openResetPwd('+j({id:u.id,nom:u.nom,cognom:u.cognom,username:u.username})+')\'">Restablir</button></td></tr>';
   }).join('');
-  $('adminBody').innerHTML=
+  $('userTable').innerHTML=
     '<div class="panel" style="padding:6px 8px;overflow:auto">'+
     '<table><thead><tr><th>Nom</th><th>Usuari</th><th>Rol</th><th>Classe</th><th></th></tr></thead>'+
-    '<tbody>'+(rows||'<tr><td colspan="5" class="empty">Cap usuari.</td></tr>')+'</tbody></table></div>';
+    '<tbody>'+(rows||'<tr><td colspan="5" class="empty">Cap resultat.</td></tr>')+'</tbody></table></div>';
 }
 function openResetPwd(u){
   openModal('<h3>Restablir contrasenya</h3>'+
@@ -921,11 +934,8 @@ async function renderAdminDesdoblTab(ad){
   [].concat(ad.alumnes||[]).forEach(function(u){ if(u.classe&&!seen[u.classe]){seen[u.classe]=true;classes.push(u.classe);} });
   classes.sort();
   if(!state._desdClasse&&classes.length) state._desdClasse=classes[0];
-  var mods=[]; var seenM={};
-  [].concat(ad.professors||[]).concat(ad.admins||[]).forEach(function(u){
-    (u.moduls||[]).forEach(function(m){ if(!seenM[m.codi]){seenM[m.codi]=true;mods.push(m);} });
-  });
-  mods.sort(function(a,b){return a.codi.localeCompare(b.codi);});
+  var rm=await call('getModulesAll');
+  var mods=(rm.ok&&rm.modules)?rm.modules:[];
   if(!state._desdModul&&mods.length) state._desdModul=mods[0].codi;
   var selCl='<select class="field inline" onchange="state._desdClasse=this.value;renderAdminDesdoblaments()">'+
     '<option value="">— classe —</option>'+

@@ -97,6 +97,7 @@ function handleRequest(action, payload) {
       case 'getDesdoblaments':      return { ok:true, data: getDesdoblaments_(payload) };
       case 'saveDesdoblaments':     return { ok:true, done: saveDesdoblaments_(payload) };
       // admin: catàleg d'activitats
+      case 'getModulesAll':         return { ok:true, modules: getModulesAll_() };
       case 'listCatalogActivities': return { ok:true, activities: listCatalogActivities_() };
       case 'saveCatalogActivity':   return { ok:true, result: saveCatalogActivity_(payload) };
       case 'deleteCatalogActivity': return { ok:true, deleted: deleteCatalogActivity_(payload) };
@@ -721,6 +722,13 @@ function parseDesdoblaments_(raw){
 }
 function serializeDesdoblaments_(map){
   return Object.keys(map).filter(function(k){return map[k]>0;}).map(function(k){return k+':'+map[k];}).join(',');
+}
+
+function getModulesAll_(){
+  var c=CONFIG.cols.moduls;
+  return readMain_('moduls').rows.map(function(r){
+    return {codi:normVal_(r[c.codi]),nom:String(r[c.nom]),curs:normVal_(r[c.curs])};
+  }).filter(function(m){return m.codi;}).sort(function(a,b){return a.codi.localeCompare(b.codi);});
 }
 
 /* ============== GESTIÓ D'USUARIS (ADMIN) ============== */
