@@ -20,7 +20,7 @@ var CONFIG = {
   },
   cols: {
     usuaris:   { id:'id', nom:'nom', cognom:'cognom', correu:'correu corporatiu',
-                 username:'username', password:'password', rol:'rol', classe:'classe', moduls:'mòdul', pendents:'pendents', noMat:'no matriculat', desdoblaments:'desdoblaments' },
+                 username:'username', password:'password', rol:'rol', classe:'classe', moduls:'mòdul', pendents:'pendents', noMat:'no matriculat', desdoblaments:'desdoblaments', resetRequest:'reset request' },
     moduls:    { codi:'Codi', nom:'Mòdul', curs:'Curs', sheetId:'ID' },
     actInd:    { activitat:'Activitat', capacitat:'Capacitats Clau', indicador:'Indicadors', codi:'Codi Indicador', color:'Codi color', paraules:'paraules clau' },
     indicadors:{ codi:'codi', capacitatId:'capacitatId', capacitat:'capacitat', requisit:'requisit', text:'indicador_SABER_FER', colorCap:'colorCapacitat', colorInd:'colorIndicador' }
@@ -746,7 +746,7 @@ function getAdminUsers_(){
     var moduls=parseModuls_(u[c.moduls]).map(function(code){ return modIdx[code]||{codi:code,nom:code}; });
     var obj={id:String(u[c.id]),nom:String(u[c.nom]),cognom:String(u[c.cognom]),
       username:String(u[c.username]),rol:String(u[c.rol]),classe:String(u[c.classe]||''),
-      moduls:moduls};
+      moduls:moduls, resetRequest:!!(u[c.resetRequest])};
     var r=String(u[c.rol]);
     if(r==='admin') admins.push(obj);
     else if(r==='professor') professors.push(obj);
@@ -761,7 +761,12 @@ function resetPassword_(p){
   var data=readMain_('usuaris'); var pwCol=colIndex_(data.headers,c.password);
   if(pwCol<0) throw new Error('No s\'ha trobat la columna password.');
   var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
-  data.rows.forEach(function(u){ if(String(u[c.id])===String(p.userId)) sh.getRange(u.__row,pwCol).setValue(String(p.password||'')); });
+  var rrCol=colIndex_(data.headers,c.resetRequest);
+  data.rows.forEach(function(u){
+    if(String(u[c.id])!==String(p.userId)) return;
+    sh.getRange(u.__row,pwCol).setValue(String(p.password||''));
+    if(rrCol>=0) sh.getRange(u.__row,rrCol).setValue('');
+  });
   return true;
 }
 function changePassword_(p){
@@ -778,16 +783,11 @@ function changePassword_(p){
   return true;
 }
 function requestPasswordReset_(p){
-  var c=CONFIG.cols.usuaris; var rows=readMain_('usuaris').rows;
-  var requester=null, adminCorreu=null;
-  rows.forEach(function(u){ if(String(u[c.id])===String(p.userId)) requester=u; });
-  rows.forEach(function(u){ if(String(u[c.rol])==='admin'&&String(u[c.correu]).trim()&&!adminCorreu) adminCorreu=String(u[c.correu]).trim(); });
-  if(!requester) throw new Error('Usuari no trobat.');
-  if(!adminCorreu) throw new Error('No s\'ha trobat cap adreça de correu d\'administrador.');
-  var nom=String(requester[c.nom])+' '+String(requester[c.cognom]);
-  var username=String(requester[c.username]);
-  MailApp.sendEmail(adminCorreu,'[EAS CC] Sol·licitud de restabliment de contrasenya',
-    'L\'usuari '+nom+' ('+username+') ha sol·licitat que li restabliu la contrasenya a l\'aplicació EAS CC.');
+  var c=CONFIG.cols.usuaris;
+  var data=readMain_('usuaris'); var col=colIndex_(data.headers,c.resetRequest);
+  if(col<0) throw new Error('No s\'ha trobat la columna reset request al full Usuaris.');
+  var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
+  data.rows.forEach(function(u){ if(String(u[c.id])===String(p.userId)) sh.getRange(u.__row,col).setValue(true); });
   return true;
 }
 

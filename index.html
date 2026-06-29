@@ -869,7 +869,7 @@ function renderPerfil(){
         '<button class="btn ghost" style="flex:1;margin:0" onclick="closeModal()">Cancel·la</button>'+
         '<button class="btn" style="flex:1;margin:0" onclick="doChangePwd()">Canviar contrasenya</button>'+
       '</div>'+
-      '<button class="btn ghost" style="width:100%;margin:0;font-size:13px" onclick="doRequestReset()">Sol·licitar restabliment per correu</button>'+
+      '<button class="btn ghost" style="width:100%;margin:0;font-size:13px" onclick="doRequestReset()">Sol·licitar restabliment de contrasenya</button>'+
     '</div>'
   );
 }
@@ -886,7 +886,7 @@ async function doChangePwd(){
 async function doRequestReset(){
   var r=await call('requestPasswordReset',{userId:state.user.id});
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error enviant la sol·licitud.');
-  closeModal(); toast('Sol·licitud enviada a l\'administrador per correu.');
+  closeModal(); toast('Sol·licitud enviada a l\'administrador.');
 }
 
 /* ====================== ADMIN: GESTIÓ D'USUARIS ====================== */
@@ -896,13 +896,17 @@ async function renderUsuaris(){
     '<div class="row" style="margin-bottom:16px;gap:6px">'+
       '<button class="btn sm '+(state.adminTab==='usuaris'?'':'ghost')+'" onclick="setAdminTab(\'usuaris\')">Usuaris</button>'+
       '<button class="btn sm '+(state.adminTab==='desdoblaments'?'':'ghost')+'" onclick="setAdminTab(\'desdoblaments\')">Desdoblaments</button>'+
+      '<button class="btn sm '+(state.adminTab==='avisos'?'':'ghost')+'" id="tabAvisos" onclick="setAdminTab(\'avisos\')">Avisos</button>'+
     '</div>'+
     '<div id="adminBody"><div class="empty">Carregant…</div></div>';
   var r=await call('getAdminUsers');
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error carregant usuaris.');
   var ad=r.data;
+  var nAvisos=(ad.admins||[]).concat(ad.professors||[]).concat(ad.alumnes||[]).filter(function(u){return u.resetRequest;}).length;
+  var tabBtn=$('tabAvisos'); if(tabBtn&&nAvisos) tabBtn.textContent='Avisos ('+nAvisos+')';
   if(state.adminTab==='usuaris') renderAdminUsuarisTab(ad);
-  else renderAdminDesdoblTab(ad);
+  else if(state.adminTab==='desdoblaments') renderAdminDesdoblTab(ad);
+  else renderAdminAvisosTab(ad);
 }
 function setAdminTab(t){ state.adminTab=t; renderUsuaris(); }
 function renderAdminUsuarisTab(ad){
@@ -944,6 +948,22 @@ async function doResetPwd(uid){
   var r=await call('resetPassword',{userId:uid,password:pwd});
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error restablint la contrasenya.');
   closeModal(); toast('Contrasenya restablerta.');
+}
+function renderAdminAvisosTab(ad){
+  var tots=(ad.admins||[]).concat(ad.professors||[]).concat(ad.alumnes||[]);
+  var pending=tots.filter(function(u){return u.resetRequest;});
+  if(!pending.length){
+    $('adminBody').innerHTML='<div class="empty">No hi ha sol·licituds pendents.</div>';
+    return;
+  }
+  var rows=pending.map(function(u){
+    return '<tr><td>'+esc(u.cognom)+', '+esc(u.nom)+'</td><td class="mono">'+esc(u.username)+'</td>'+
+      '<td style="text-align:right"><button class="btn sm" onclick=\'openResetPwd('+j({id:u.id,nom:u.nom,cognom:u.cognom,username:u.username})+')\'">Restablir</button></td></tr>';
+  }).join('');
+  $('adminBody').innerHTML=
+    '<div class="panel" style="padding:6px 8px;overflow:auto">'+
+    '<table><thead><tr><th>Nom</th><th>Usuari</th><th></th></tr></thead>'+
+    '<tbody>'+rows+'</tbody></table></div>';
 }
 async function renderAdminDesdoblTab(ad){
   var classes=[]; var seen={};
