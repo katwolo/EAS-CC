@@ -180,6 +180,7 @@
     <label for="p">Contrasenya</label>
     <input id="p" class="field" type="password" autocomplete="current-password" placeholder="••••••">
     <button class="btn" onclick="formLogin()">Accedir</button>
+    <div style="text-align:center;margin-top:12px"><button class="btn-link" onclick="doRequestResetFromLogin()">Has oblidat la contrasenya?</button></div>
     <div id="pingStatus"></div>
     <div class="quick"><p>Accés ràpid (proves)</p>
       <div class="quick-row">
@@ -869,7 +870,6 @@ function renderPerfil(){
         '<button class="btn ghost" style="flex:1;margin:0" onclick="closeModal()">Cancel·la</button>'+
         '<button class="btn" style="flex:1;margin:0" onclick="doChangePwd()">Canviar contrasenya</button>'+
       '</div>'+
-      '<button class="btn ghost" style="width:100%;margin:0;font-size:13px" onclick="doRequestReset()">Sol·licitar restabliment de contrasenya</button>'+
     '</div>'
   );
 }
@@ -883,10 +883,12 @@ async function doChangePwd(){
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error canviant la contrasenya.');
   closeModal(); toast('Contrasenya actualitzada.');
 }
-async function doRequestReset(){
-  var r=await call('requestPasswordReset',{userId:state.user.id});
+async function doRequestResetFromLogin(){
+  var username=($('u')||{}).value||'';
+  if(!username.trim()) return showError('Introdueix el teu nom d\'usuari per sol·licitar el restabliment.');
+  var r=await call('requestPasswordReset',{username:username.trim()});
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error enviant la sol·licitud.');
-  closeModal(); toast('Sol·licitud enviada a l\'administrador.');
+  clearError(); setPing('Sol·licitud enviada. L\'administrador restablirà la teva contrasenya en breu.');
 }
 
 /* ====================== ADMIN: GESTIÓ D'USUARIS ====================== */

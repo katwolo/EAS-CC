@@ -786,8 +786,13 @@ function requestPasswordReset_(p){
   var c=CONFIG.cols.usuaris;
   var data=readMain_('usuaris'); var col=colIndex_(data.headers,c.resetRequest);
   if(col<0) throw new Error('No s\'ha trobat la columna reset request al full Usuaris.');
-  var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
-  data.rows.forEach(function(u){ if(String(u[c.id])===String(p.userId)) sh.getRange(u.__row,col).setValue(true); });
+  var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name); var found=false;
+  data.rows.forEach(function(u){
+    if(String(u[c.username]).trim()===String(p.username||'').trim()){
+      sh.getRange(u.__row,col).setValue(true); found=true;
+    }
+  });
+  if(!found) throw new Error('No s\'ha trobat cap usuari amb aquest nom d\'usuari.');
   return true;
 }
 
