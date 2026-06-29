@@ -787,14 +787,17 @@ function paintAvaluacio(){
   var saveBtn = stt.complete
     ? '<button class="btn sm" onclick="saveRegistre()">Desar registre</button>'
     : '<button class="btn sm" disabled title="Falten valoracions">Falten '+(stt.need-stt.done)+' valoracions</button>';
+  var kwHtml=(state.activityParaules)?'<div class="kws" style="margin-top:2px;margin-bottom:2px">'+esc(state.activityParaules)+'</div>':'';
+  var indDesc=(function(){var ex=state._indDescExpanded;
+    if(ex){return '<div class="ind-desc"><div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.capacitat)+' · '+esc(ind.codi)+'</div>'+esc(ind.text)+'<div style="margin-top:8px"><button class="btn-link" onclick="state._indDescExpanded=false;paintAvaluacio()">← Mostra menys</button></div></div>';}
+    return '<div class="ind-desc"><div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.codi)+'</div><button class="btn-link" onclick="state._indDescExpanded=true;paintAvaluacio()">Mostra més →</button></div>';
+  })();
   $('step').innerHTML=
     '<h2 class="step-title">'+(state.editBlock?'Editar registre · ':'Avaluació · ')+esc(state.activity)+'</h2>'+
+    kwHtml+
     '<p class="step-sub">Grup '+esc(state.classe)+' · «'+esc(state.module.nom)+'»'+projTxt+' · '+esc(state.data)+'</p>'+
     '<div class="indtabs">'+tabs+'</div>'+
-    (function(){var pw=state.activityParaules||'';var ex=state._indDescExpanded;
-      if(ex){return '<div class="ind-desc"><div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.capacitat)+' · '+esc(ind.codi)+'</div>'+esc(ind.text)+'<div style="margin-top:8px"><button class="btn-link" onclick="state._indDescExpanded=false;paintAvaluacio()">← Mostra menys</button></div></div>';}
-      return '<div class="ind-desc">'+(pw?'<div class="kws">'+esc(pw)+'</div>':'<div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.codi)+'</div>')+'<button class="btn-link" onclick="state._indDescExpanded=true;paintAvaluacio()">Mostra més →</button></div>';
-    })()+
+    indDesc+
     '<div class="panel"><div class="allrow"><span class="muted" style="font-size:13px">Aplica a tots →</span><div class="gbtns">'+
       NB().map(function(b){var na=(b.value==='NA')?' na':'';var bg=(b.value==='NA')?'':('background:'+b.color);return '<button class="gbtn'+na+'" style="'+bg+'" title="'+esc(b.label)+'" onclick="setAll(\''+b.value+'\')"></button>';}).join('')+
       '</div><div class="spacer"></div><span class="counter">'+done+' / '+all.length+'</span></div>'+
