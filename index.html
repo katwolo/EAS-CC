@@ -660,7 +660,7 @@ async function stepModul(){
     return renderStep();
   }
   loadingStep(); var r=await call('getModules',{user:state.user,curs:state.curs}); if(!r.ok) return showError(r.error);
-  var opts=r.modules.map(function(m){return '<button class="opt" onclick=\'pickModul('+j(m)+')\'><div class="t">'+esc(m.nom)+'</div><div class="d mono">codi: '+esc(m.codi)+'</div></button>';}).join('');
+  var opts=r.modules.map(function(m){return '<button class="opt center" onclick=\'pickModul('+j(m)+')\'><div class="big" style="font-family:var(--mono)">'+esc(m.codi)+'</div><div class="t">'+esc(m.nom)+'</div></button>';}).join('');
   $('step').innerHTML='<h2 class="step-title">Selecciona el mòdul</h2><p class="step-sub">Mòduls de curs '+esc(state.curs)+' assignats a tu.</p><div class="opts">'+(opts||'<div class="empty">No tens mòduls de curs '+esc(state.curs)+'.</div>')+'</div>';
 }
 function pickGrup(g){
