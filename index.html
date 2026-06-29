@@ -123,6 +123,8 @@
   .indtab .code{font-family:var(--mono);font-weight:600}.indtab .prog{font-family:var(--mono);font-size:11px;color:var(--muted)}
   .ind-desc{background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;padding:11px 14px;font-size:13.5px;margin-bottom:14px}
   .ind-desc .cap{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:3px}
+  .kws{font-size:14px;color:var(--text-2);letter-spacing:.02em;margin-bottom:4px}
+  .btn-link{background:none;border:none;color:var(--accent);cursor:pointer;font-size:12.5px;padding:4px 0;display:inline-block}
   .gbtns{display:flex;gap:7px}
   .gbtn{width:34px;height:32px;border-radius:8px;border:2px solid transparent;background:var(--surface-3);transition:.1s;cursor:pointer}
   .gbtn:hover{transform:scale(1.08)} .gbtn.on{box-shadow:0 0 0 2px var(--bg),0 0 0 4px var(--ring)}
@@ -224,6 +226,7 @@ var state = { user:null, device:'pc', theme:'dark', view:'inici',
   // wizard
   step:1, curs:null, classe:null, module:null, moduleProjects:null, projecte:null, activity:null, data:null,
   indicators:[], curInd:0, students:null, grades:{}, editBlock:null,
+  activityParaules:'', _indDescExpanded:false,
   grup:null, hasGrups:false,
   // admin
   adminTab:'usuaris',
@@ -488,7 +491,7 @@ async function renderActivitats(){
 async function openEditActivity(a){
   $('content').innerHTML='<div class="empty">Carregant indicadors…</div>';
   var rp=await call('getCapabilities',{}); if(!rp.ok) return showError(rp.error);
-  actEdit={ nom:a?a.nom:'', _oldNom:a?a.nom:null, caps:rp.caps, open:null, selected:{} };
+  actEdit={ nom:a?a.nom:'', _oldNom:a?a.nom:null, caps:rp.caps, open:null, selected:{}, paraules:a?(a.paraules||''):'' };
   if(a){ a.indicators.forEach(function(ind){ actEdit.selected[ind.codi]=true; }); }
   paintActivitatForm();
 }
@@ -516,6 +519,8 @@ function paintActivitatForm(){
     '<div class="panel">'+
       '<label>Nom de l\'activitat</label>'+
       '<input id="act_name" class="field" style="width:100%;max-width:420px" value="'+esc(actEdit.nom)+'" oninput="actEdit.nom=this.value" placeholder="p. ex. Sortida a la residència">'+
+      '<label style="margin-top:14px">Paraules clau <span class="muted" style="font-size:12px">(opcional · p. ex. #observació #grupal)</span></label>'+
+      '<input id="act_kw" class="field" style="width:100%;max-width:420px" value="'+esc(actEdit.paraules)+'" oninput="actEdit.paraules=this.value" placeholder="#hashtag1 #hashtag2">'+
       '<label style="margin-top:16px">Capacitats clau i indicadors</label>'+
       '<div class="capacc">'+capHtml+'</div>'+
       '<div class="row" style="margin-top:18px">'+
@@ -534,7 +539,7 @@ async function doSaveActivity(){
     var rd=await call('deleteActivity',{moduleCodi:state.activModul,nom:actEdit._oldNom});
     if(!rd.ok) return showError(rd.error);
   }
-  var r=await call('saveActivity',{moduleCodi:state.activModul,nom:nom,indicators:codes});
+  var r=await call('saveActivity',{moduleCodi:state.activModul,nom:nom,indicators:codes,paraules:actEdit.paraules||''});
   if(!r.ok) return showError(r.error);
   toast(actEdit._oldNom?'Activitat actualitzada.':'Activitat creada.');
   renderActivitats();
@@ -685,22 +690,25 @@ function pickProjecte(p){state.projecte=p;state.activity=null;state.step=5;rende
 async function stepActivitat(){
   loadingStep(); var r=await call('getActivityTypes',{moduleCodi:state.module.codi}); if(!r.ok) return showError(r.error);
   var sub = state.projecte ? ('Projecte P'+esc(state.projecte.num)+' · «'+esc(state.projecte.nom)+'».') : 'Evidència sense projecte.';
+  var kwMap={}; r.types.forEach(function(t){ kwMap[t.activitat]=t.paraules||''; });
+  window._actKwMap=kwMap;
   var optionList=r.types.map(function(t){var src=(t.font==='mòdul')?' · del mòdul':'';return '<option value="'+esc(t.activitat)+'">'+esc(t.activitat)+' — '+t.nIndicadors+' indicador'+(t.nIndicadors===1?'':'s')+src+'</option>';}).join('');
   $('step').innerHTML='<h2 class="step-title">Activitat / evidència</h2><p class="step-sub">'+sub+'</p>'+
     '<div class="panel"><div class="row"><label style="margin:0">Data</label><input id="evData" class="field inline" type="date" value="'+esc(state.data)+'" onchange="state.data=this.value"></div>'+
     '<label style="margin-top:14px">Activitat</label>'+
-    '<div class="row"><select id="actSel" class="field" style="flex:1;min-width:200px"><option value="">— tria una activitat —</option>'+optionList+'</select>'+
+    '<div class="row"><select id="actSel" class="field" style="flex:1;min-width:200px" onchange="var kw=(window._actKwMap||{})[this.value]||\'\';var el=document.getElementById(\'act-kw-hint\');if(el)el.textContent=kw;"><option value="">— tria una activitat —</option>'+optionList+'</select>'+
     '<button class="btn sm" style="white-space:nowrap" onclick="confirmActivitat()">Continuar →</button></div>'+
+    '<div id="act-kw-hint" class="muted" style="font-size:13px;margin-top:5px;min-height:18px"></div>'+
     '<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px"><button class="btn sm ghost" onclick="newActivity()">+ Nova activitat</button>'+
     '<span class="muted" style="font-size:12.5px;margin-left:10px">Crea una activitat nova amb les seves capacitats i indicadors.</span></div></div>';
 }
 function confirmActivitat(){ var a=$('actSel')?$('actSel').value:''; if(!a) return showError('Tria una activitat del desplegable.'); pickActivitat(a); }
-var newAct={ name:'', caps:[], open:null, selected:{} };
-var actEdit={ nom:'', _oldNom:null, caps:[], open:null, selected:{} };
+var newAct={ name:'', caps:[], open:null, selected:{}, paraules:'' };
+var actEdit={ nom:'', _oldNom:null, caps:[], open:null, selected:{}, paraules:'' };
 async function newActivity(){
   loadingStep('Carregant capacitats i indicadors…');
   var r=await call('getCapabilities',{}); if(!r.ok) return showError(r.error);
-  newAct={ name:'', caps:r.caps, open:null, selected:{} };
+  newAct={ name:'', caps:r.caps, open:null, selected:{}, paraules:'' };
   paintNewActivity();
 }
 function toggleCap(ci){ newAct.open=(newAct.open===ci?null:ci); paintNewActivity(); }
@@ -725,6 +733,8 @@ function paintNewActivity(){
       '<div class="row"><div style="flex:1;min-width:200px"><label style="margin-top:0">Nom de l\'activitat</label>'+
         '<input id="na_name" class="field" style="width:100%" value="'+esc(newAct.name)+'" oninput="newAct.name=this.value" placeholder="p. ex. Sortida a la residència"></div>'+
         '<div><label style="margin-top:0">Data</label><input class="field" type="date" value="'+esc(state.data)+'" onchange="state.data=this.value"></div></div>'+
+      '<label style="margin-top:14px">Paraules clau <span class="muted" style="font-size:12px">(opcional · p. ex. #observació #grupal)</span></label>'+
+      '<input id="na_kw" class="field" style="width:100%;max-width:420px" value="'+esc(newAct.paraules)+'" oninput="newAct.paraules=this.value" placeholder="#hashtag1 #hashtag2">'+
       '<label style="margin-top:16px">Capacitats clau i indicadors a avaluar</label>'+
       '<div class="capacc">'+capHtml+'</div>'+
       '<div class="row" style="margin-top:18px;align-items:center"><span class="counter">'+sel.length+' indicador'+(sel.length===1?'':'s')+' triat'+(sel.length===1?'':'s')+'</span>'+
@@ -737,17 +747,17 @@ async function createActivity(){
   var nom=(newAct.name||'').trim(); if(!nom) return showError('Posa un nom a l\'activitat.');
   var codes=Object.keys(newAct.selected).filter(function(k){return newAct.selected[k];});
   if(!codes.length) return showError('Tria almenys un indicador.');
-  var r=await call('saveActivity',{moduleCodi:state.module.codi,nom:nom,indicators:codes});
+  var r=await call('saveActivity',{moduleCodi:state.module.codi,nom:nom,indicators:codes,paraules:newAct.paraules||''});
   if(!r.ok) return showError(r.error);
   toast('Activitat «'+nom+'» creada al mòdul.');
   pickActivitat(nom);
 }
-function pickActivitat(a){state.activity=a;state.step=6;if(!state.editBlock)state.grades={};state.curInd=0;renderStep();}
+function pickActivitat(a){state.activity=a;state.step=6;if(!state.editBlock)state.grades={};state.curInd=0;state.activityParaules='';state._indDescExpanded=false;renderStep();}
 async function stepAvaluacio(){
   loadingStep('Carregant indicadors i alumnes…');
   var ri=await call('getActivityIndicators',{activitat:state.activity,moduleCodi:state.module.codi}); if(!ri.ok) return showError(ri.error);
   var rs=await call('getStudents',{classe:state.classe,moduleCodi:state.module.codi,grup:state.grup}); if(!rs.ok) return showError(rs.error);
-  state.indicators=ri.indicators; state.students=rs.data;
+  state.indicators=ri.indicators; state.activityParaules=ri.paraules||''; state.students=rs.data;
   state.indicators.forEach(function(ind){ if(!state.grades[ind.codi]) state.grades[ind.codi]={}; });
   paintAvaluacio();
 }
@@ -781,7 +791,10 @@ function paintAvaluacio(){
     '<h2 class="step-title">'+(state.editBlock?'Editar registre · ':'Avaluació · ')+esc(state.activity)+'</h2>'+
     '<p class="step-sub">Grup '+esc(state.classe)+' · «'+esc(state.module.nom)+'»'+projTxt+' · '+esc(state.data)+'</p>'+
     '<div class="indtabs">'+tabs+'</div>'+
-    '<div class="ind-desc"><div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.capacitat)+' · '+esc(ind.codi)+'</div>'+esc(ind.text)+'</div>'+
+    (function(){var pw=state.activityParaules||'';var ex=state._indDescExpanded;
+      if(ex){return '<div class="ind-desc"><div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.capacitat)+' · '+esc(ind.codi)+'</div>'+esc(ind.text)+'<div style="margin-top:8px"><button class="btn-link" onclick="state._indDescExpanded=false;paintAvaluacio()">← Mostra menys</button></div></div>';}
+      return '<div class="ind-desc">'+(pw?'<div class="kws">'+esc(pw)+'</div>':'<div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.codi)+'</div>')+'<button class="btn-link" onclick="state._indDescExpanded=true;paintAvaluacio()">Mostra més →</button></div>';
+    })()+
     '<div class="panel"><div class="allrow"><span class="muted" style="font-size:13px">Aplica a tots →</span><div class="gbtns">'+
       NB().map(function(b){var na=(b.value==='NA')?' na':'';var bg=(b.value==='NA')?'':('background:'+b.color);return '<button class="gbtn'+na+'" style="'+bg+'" title="'+esc(b.label)+'" onclick="setAll(\''+b.value+'\')"></button>';}).join('')+
       '</div><div class="spacer"></div><span class="counter">'+done+' / '+all.length+'</span></div>'+
@@ -987,7 +1000,7 @@ async function saveDesdoblaments(){
 }
 
 /* ====================== ADMIN: GESTIÓ D'ACTIVITATS (CATÀLEG) ====================== */
-var catEdit={ nom:'', _oldNom:null, caps:[], open:null, selected:{} };
+var catEdit={ nom:'', _oldNom:null, caps:[], open:null, selected:{}, paraules:'' };
 async function renderActCataleg(){
   $('content').innerHTML=
     '<h2 class="page-title">Gestió d\'activitats (catàleg)</h2>'+
@@ -1017,7 +1030,7 @@ async function renderActCataleg(){
 async function openEditCatalogActivity(a){
   $('content').innerHTML='<div class="empty">Carregant indicadors…</div>';
   var rp=await call('getCapabilities',{}); if(!rp.ok) return showError(rp.error);
-  catEdit={ nom:a?a.nom:'', _oldNom:a?a.nom:null, caps:rp.caps, open:null, selected:{} };
+  catEdit={ nom:a?a.nom:'', _oldNom:a?a.nom:null, caps:rp.caps, open:null, selected:{}, paraules:a?(a.paraules||''):'' };
   if(a){ a.indicators.forEach(function(ind){ catEdit.selected[ind.codi]=true; }); }
   paintCatalegForm();
 }
@@ -1045,6 +1058,8 @@ function paintCatalegForm(){
     '<div class="panel">'+
       '<label>Nom de l\'activitat</label>'+
       '<input id="cat_name" class="field" style="width:100%;max-width:420px" value="'+esc(catEdit.nom)+'" oninput="catEdit.nom=this.value" placeholder="p. ex. Tutoria grupal">'+
+      '<label style="margin-top:14px">Paraules clau <span class="muted" style="font-size:12px">(opcional · p. ex. #observació #grupal)</span></label>'+
+      '<input id="cat_kw" class="field" style="width:100%;max-width:420px" value="'+esc(catEdit.paraules)+'" oninput="catEdit.paraules=this.value" placeholder="#hashtag1 #hashtag2">'+
       '<label style="margin-top:16px">Capacitats clau i indicadors</label>'+
       '<div class="capacc">'+capHtml+'</div>'+
       '<div class="row" style="margin-top:18px">'+
@@ -1059,7 +1074,7 @@ async function doSaveCatalogActivity(){
   var nom=(catEdit.nom||'').trim(); if(!nom) return showError('Posa un nom a l\'activitat.');
   var codes=Object.keys(catEdit.selected).filter(function(k){return catEdit.selected[k];});
   if(!codes.length) return showError('Tria almenys un indicador.');
-  var payload={nom:nom,indicators:codes};
+  var payload={nom:nom,indicators:codes,paraules:catEdit.paraules||''};
   if(catEdit._oldNom&&catEdit._oldNom!==nom) payload.oldNom=catEdit._oldNom;
   var r=await call('saveCatalogActivity',payload);
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error desant activitat.');
