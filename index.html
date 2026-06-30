@@ -169,12 +169,6 @@
   <div class="card-login">
     <div class="brand"><div class="dot">CC</div><div><h1>EAS CC</h1></div></div>
     <div class="sub">Avaluació per indicadors · Registre d'evidències</div>
-    <label for="device">Versió d'accés</label>
-    <select id="device" class="field">
-      <option value="auto">Automàtica (segons el dispositiu)</option>
-      <option value="pc">Ordinador (PC)</option>
-      <option value="mobile">Mòbil</option>
-    </select>
     <label for="u">Usuari</label>
     <input id="u" class="field" autocomplete="username" placeholder="usuari">
     <label for="p">Contrasenya</label>
@@ -182,12 +176,6 @@
     <button class="btn" onclick="formLogin()">Accedir</button>
     <div style="text-align:center;margin-top:12px"><button class="btn-link" onclick="doRequestResetFromLogin()">Has oblidat la contrasenya?</button></div>
     <div id="pingStatus"></div>
-    <div class="quick"><p>Accés ràpid (proves)</p>
-      <div class="quick-row">
-        <button class="btn ghost" onclick="quickLogin('admin','admin123')">Admin</button>
-        <button class="btn ghost" onclick="quickLogin('prof','1234')">Professor (Iván)</button>
-      </div>
-    </div>
   </div>
 </div>
 
