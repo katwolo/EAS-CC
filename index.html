@@ -101,7 +101,7 @@
   .opt{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px;cursor:pointer;transition:.14s;text-align:left}
   .opt:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow)}
   .opt .big{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--accent-2)}
-  .opt .t{font-size:15px;font-weight:600;margin-top:2px}.opt .d{font-size:12.5px;color:var(--muted);margin-top:4px}
+  .opt .t{font-size:15px;font-weight:600;margin-top:2px;color:var(--text)}.opt .d{font-size:12.5px;color:var(--muted);margin-top:4px}
   .indtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
   .indtab{border:1px solid var(--border);background:var(--surface-2);border-radius:10px;padding:9px 13px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;transition:.12s}
   .indtab .swatch{width:11px;height:11px;border-radius:3px;flex:none}
@@ -661,7 +661,7 @@ async function stepModul(){
     return renderStep();
   }
   loadingStep(); var r=await call('getModules',{user:state.user,curs:state.curs}); if(!r.ok) return showError(r.error);
-  var opts=r.modules.map(function(m){return '<button class="opt center" onclick=\'pickModul('+j(m)+')\'><div class="big" style="font-family:var(--mono)">'+esc(m.codi)+'</div><div class="t" style="color:var(--text)">'+esc(m.nom)+'</div></button>';}).join('');
+  var opts=r.modules.map(function(m){return '<button class="opt center" onclick=\'pickModul('+j(m)+')\'><div class="big" style="font-family:var(--mono)">'+esc(m.codi)+'</div><div class="t">'+esc(m.nom)+'</div></button>';}).join('');
   $('step').innerHTML='<h2 class="step-title">Selecciona el mòdul</h2><p class="step-sub">Mòduls de curs '+esc(state.curs)+' assignats a tu.</p><div class="opts">'+(opts||'<div class="empty">No tens mòduls de curs '+esc(state.curs)+'.</div>')+'</div>';
 }
 function pickGrup(g){
