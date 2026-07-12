@@ -241,7 +241,7 @@ function scoreColor(n){ if(n==null) return null; n=Math.round(n); if(n<=2)return
 
 /* device + login */
 function detectDevice(){var s=window.matchMedia&&window.matchMedia('(max-width: 768px)').matches;var t=('ontouchstart' in window)&&window.innerWidth<900;return (s||t)?'mobile':'pc';}
-function resolveDevice(){var v=$('device')?$('device').value:'auto';return v==='auto'?detectDevice():v;}
+function resolveDevice(){return detectDevice();}
 function applyMode(){document.body.classList.remove('mode-pc','mode-mobile');document.body.classList.add('mode-'+(state.device||'pc'));$('modePill').textContent=(state.device==='mobile'?'📱 Mòbil':'🖥️ PC');}
 function toggleMode(){state.device=(state.device==='mobile')?'pc':'mobile';applyMode();
   if($('app').style.display!=='none'&&(state.user.rol==='professor'||state.user.rol==='admin')){ buildNav(); go(state.device==='mobile'?'registrar':(state.view||'inici')); }}
@@ -258,7 +258,6 @@ async function doLogin(username,password){
   setPing('');clearError(); state.user=r.user; state.device=resolveDevice(); enterApp();
 }
 function formLogin(){doLogin($('u').value.trim(),$('p').value);}
-function quickLogin(u,p){doLogin(u,p);}
 document.addEventListener('keydown',function(e){if(e.key==='Enter'&&$('app').style.display!=='flex')formLogin();});
 function logout(){state.user=null;$('app').style.display='none';$('login').style.display='flex';setPing('');}
 
@@ -776,14 +775,12 @@ function paintAvaluacio(){
   var saveBtn = stt.complete
     ? '<button class="btn sm" onclick="saveRegistre()">Desar registre</button>'
     : '<button class="btn sm" disabled title="Falten valoracions">Falten '+(stt.need-stt.done)+' valoracions</button>';
-  var kwHtml=(state.activityParaules)?'<div class="kws" style="margin-top:2px;margin-bottom:2px">'+esc(state.activityParaules)+'</div>':'';
-  var indDesc=(function(){var ex=state._indDescExpanded;
+  var indDesc=(function(){var ex=state._indDescExpanded; var pw=state.activityParaules||'';
     if(ex){return '<div class="ind-desc"><div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.capacitat)+' · '+esc(ind.codi)+'</div>'+esc(ind.text)+'<div style="margin-top:8px"><button class="btn-link" onclick="state._indDescExpanded=false;paintAvaluacio()">← Mostra menys</button></div></div>';}
-    return '<div class="ind-desc"><div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.codi)+'</div><button class="btn-link" onclick="state._indDescExpanded=true;paintAvaluacio()">Mostra més →</button></div>';
+    return '<div class="ind-desc">'+(pw?'<div class="kws">'+esc(pw)+'</div>':'<div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.codi)+'</div>')+'<button class="btn-link" onclick="state._indDescExpanded=true;paintAvaluacio()">Mostra més →</button></div>';
   })();
   $('step').innerHTML=
     '<h2 class="step-title">'+(state.editBlock?'Editar registre · ':'Avaluació · ')+esc(state.activity)+'</h2>'+
-    kwHtml+
     '<p class="step-sub">Grup '+esc(state.classe)+' · «'+esc(state.module.nom)+'»'+projTxt+' · '+esc(state.data)+'</p>'+
     '<div class="indtabs">'+tabs+'</div>'+
     indDesc+

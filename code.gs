@@ -914,8 +914,3 @@ function createModuleSheets() {
   Logger.log('createModuleSheets/reparació feta.');
 }
 
-/* ============== DEBUG ============== */
-function debugV4(){
-  Logger.log('ping %s', JSON.stringify(handleRequest('ping',{})));
-  var l=handleRequest('login',{username:'prof',password:'1234'}); Logger.log('login %s', JSON.stringify(l));
-}
