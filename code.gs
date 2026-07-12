@@ -341,7 +341,7 @@ function saveRegistre_(p){
   if(!sheet) throw new Error('El mòdul no té la pestanya "'+letter+'".');
   var T=CONFIG.modTab;
 
-  var inds=sortInds_(getActivityIndicators_({activitat:p.activitat, moduleCodi:p.moduleCodi})); // ordenats per capacitat
+  var inds=sortInds_(getActivityIndicators_({activitat:p.activitat, moduleCodi:p.moduleCodi}).indicators); // ordenats per capacitat
   var width=inds.length; if(!width) throw new Error('L\'activitat no té indicadors al catàleg.');
 
   // roster (regulars + pendents al final; els NO matriculats no s'inclouen)
@@ -619,7 +619,7 @@ function getBlockDetail_(p){
   var c=CONFIG.cols.usuaris; var nameId={};
   readMain_('usuaris').rows.forEach(function(u){ if(String(u[c.rol])==='alumne') nameId[(String(u[c.nom])+'|'+String(u[c.cognom])).toLowerCase()]=String(u[c.id]); });
   // mateix ordre que en desar (per capacitat)
-  var indCodes=sortInds_(getActivityIndicators_({activitat:blk.activitat, moduleCodi:p.moduleCodi})).map(function(x){return x.codi;});
+  var indCodes=sortInds_(getActivityIndicators_({activitat:blk.activitat, moduleCodi:p.moduleCodi}).indicators).map(function(x){return x.codi;});
   var grades={};
   blk.inds.forEach(function(ind,i){
     var code=indCodes[i]||('?'+i); grades[code]={};
