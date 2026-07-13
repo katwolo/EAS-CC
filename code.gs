@@ -80,6 +80,7 @@ function handleRequest(action, payload) {
       case 'deleteRegistre':        return { ok:true, deleted: deleteRegistre_(payload) };
       case 'getModuleResum':        return { ok:true, data: getModuleResum_(payload) };
       case 'getAlumneGlobalResum':  return { ok:true, data: getAlumneGlobalResum_(payload) };
+      case 'getClassGlobalResum':  return { ok:true, data: getClassGlobalResum_(payload) };
       case 'getInici':              return { ok:true, data: getInici_(payload) };
       // gestió de projectes
       case 'listProjects':          return { ok:true, projects: listProjects_(payload) };
@@ -698,6 +699,42 @@ function getAlumneGlobalResum_(p){
   var globalCells={};
   CAPS.forEach(function(cap){ globalCells[cap]=globalAcc[cap].c>0?Math.round(globalAcc[cap].s/globalAcc[cap].c):null; });
   return {nom:nom, cognom:cognom, classe:classe, modules:modulData, global:{cells:globalCells}, capNoms:RESUM_NOMS};
+}
+
+/* ============== RESUM GLOBAL DE CLASSE (PDF export) ============== */
+function getClassGlobalResum_(p){
+  var classe=String(p.classe||'').trim(); if(!classe) return {classe:'',students:[],capNoms:RESUM_NOMS};
+  var c=CONFIG.cols.usuaris;
+  var students=readMain_('usuaris').rows
+    .filter(function(u){return String(u[c.rol])==='alumne'&&String(u[c.classe]).trim()===classe;})
+    .map(function(u){return {id:String(u[c.id]),nom:String(u[c.nom]),cognom:String(u[c.cognom])};})
+    .sort(function(a,b){return (a.cognom+a.nom).localeCompare(b.cognom+b.nom);});
+  if(!students.length) return {classe:classe,students:[],capNoms:RESUM_NOMS};
+  var curs=classe.charAt(0); var cm=CONFIG.cols.moduls; var moduls=[];
+  readMain_('moduls').rows.forEach(function(m){
+    if(normVal_(m[cm.curs])===curs&&normVal_(m[cm.sheetId]))
+      moduls.push({codi:normVal_(m[cm.codi]),nom:String(m[cm.nom])});
+  });
+  var nameToId={};
+  students.forEach(function(s){nameToId[(s.nom+'|'+s.cognom).toLowerCase()]=s.id;});
+  var acc={};
+  students.forEach(function(s){acc[s.id]={};CAPS.forEach(function(cap){acc[s.id][cap]={s:0,c:0};});});
+  moduls.forEach(function(modul){
+    try{
+      var resum=getModuleResum_({moduleCodi:modul.codi,classe:classe});
+      resum.students.forEach(function(st){
+        var sid=nameToId[(st.nom.trim()+'|'+st.cognom.trim()).toLowerCase()];
+        if(!sid)return;
+        CAPS.forEach(function(cap){var v=st.cells[cap];if(v!=null){acc[sid][cap].s+=v;acc[sid][cap].c++;}});
+      });
+    }catch(e){}
+  });
+  var result=students.map(function(s){
+    var cells={};
+    CAPS.forEach(function(cap){cells[cap]=acc[s.id][cap].c>0?Math.round(acc[s.id][cap].s/acc[s.id][cap].c):null;});
+    return {nom:s.nom,cognom:s.cognom,cells:cells};
+  });
+  return {classe:classe,students:result,capNoms:RESUM_NOMS};
 }
 
 /* ============== INICI ============== */
