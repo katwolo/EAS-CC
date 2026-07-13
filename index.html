@@ -468,7 +468,7 @@ async function alumnesLoad(){
   $('alumnesBody').innerHTML='<div class="empty">Carregant…</div>';
   var r=await call('getStudents',{user:state.user, classe:state.alumnesClasse, moduleCodi:'', grup:null});
   if(!r||!r.ok){$('alumnesBody').innerHTML='<div class="empty">Error carregant alumnes.</div>';return;}
-  var alumnes=(r.regular||[]).concat(r.pendents||[]);
+  var alumnes=(r.data.regular||[]).concat(r.data.pendents||[]);
   if(!alumnes.length){$('alumnesBody').innerHTML='<div class="empty">Cap alumne trobat.</div>';return;}
   var rows=alumnes.map(function(s){
     return '<tr style="cursor:pointer" onclick="openAlumneResum(\''+esc(s.id)+'\')" title="Veure resum global">'+
