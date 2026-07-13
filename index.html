@@ -886,7 +886,8 @@ async function doForceChangePassword(){
   toast('Contrasenya establerta. Benvingut/da!');
   buildNav();
   var mobileOnly=(state.device==='mobile');
-  var defaultView=(state.user.rol==='admin')?'usuaris':(mobileOnly?'registrar':'inici');
+  var rol=state.user.rol;
+  var defaultView=(rol==='admin')?'usuaris':(rol==='alumne')?'alumneresum':(mobileOnly?'registrar':'inici');
   go(defaultView);
 }
 
