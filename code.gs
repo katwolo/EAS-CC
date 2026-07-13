@@ -79,6 +79,7 @@ function handleRequest(action, payload) {
       case 'getBlockDetail':        return { ok:true, data: getBlockDetail_(payload) };
       case 'deleteRegistre':        return { ok:true, deleted: deleteRegistre_(payload) };
       case 'getModuleResum':        return { ok:true, data: getModuleResum_(payload) };
+      case 'getAlumneGlobalResum':  return { ok:true, data: getAlumneGlobalResum_(payload) };
       case 'getInici':              return { ok:true, data: getInici_(payload) };
       // gestió de projectes
       case 'listProjects':          return { ok:true, projects: listProjects_(payload) };
@@ -653,13 +654,50 @@ function getModuleResum_(p){
     roster.forEach(function(rr){ var arr=b.notes[rr.row]; if(!arr)return; var v=arr[ci]; if(v===''||v==null||String(v).toUpperCase()==='NA')return; var n=Number(v); if(isNaN(n))return;
       if(!glob[rr.row][cap])glob[rr.row][cap]={s:0,c:0}; glob[rr.row][cap].s+=n; glob[rr.row][cap].c++; });
   });});
+  // join amb Usuaris per obtenir id
+  var cu=CONFIG.cols.usuaris; var idMap={};
+  readMain_('usuaris').rows.forEach(function(u){
+    if(String(u[cu.classe]).trim()===p.classe)
+      idMap[(String(u[cu.nom])+'|'+String(u[cu.cognom])).toLowerCase()]=String(u[cu.id]);
+  });
   var students=roster.map(function(rr){
     var cells={};
     CAPS.forEach(function(cap){ var d=glob[rr.row][cap]; if(d&&d.c){ var m=d.s/d.c; cells[cap]=Math.round(m); classSum[cap]+=m; classCnt[cap]++; } else cells[cap]=null; });
-    return { nom:rr.nom, cognom:rr.cognom, cells:cells };
+    var id=idMap[(rr.nom+'|'+rr.cognom).toLowerCase()]||'';
+    return { id:id, nom:rr.nom, cognom:rr.cognom, cells:cells };
   });
   var classMean={}; CAPS.forEach(function(c){ classMean[c]=classCnt[c]?(classSum[c]/classCnt[c]):0; });
   return { students:students, classMean:classMean, capNoms:RESUM_NOMS };
+}
+
+function getAlumneGlobalResum_(p){
+  var c=CONFIG.cols.usuaris;
+  var student=null;
+  readMain_('usuaris').rows.forEach(function(u){ if(String(u[c.id])===String(p.userId)) student=u; });
+  if(!student) throw new Error('Alumne no trobat.');
+  var nom=String(student[c.nom]).trim(), cognom=String(student[c.cognom]).trim(), classe=String(student[c.classe]).trim();
+  var curs=classe.charAt(0);
+  var cm=CONFIG.cols.moduls; var moduls=[];
+  readMain_('moduls').rows.forEach(function(m){
+    if(normVal_(m[cm.curs])===curs && normVal_(m[cm.sheetId]))
+      moduls.push({codi:normVal_(m[cm.codi]), nom:String(m[cm.nom])});
+  });
+  var modulData=[]; var globalAcc={};
+  CAPS.forEach(function(cap){ globalAcc[cap]={s:0,c:0}; });
+  moduls.forEach(function(modul){
+    try{
+      var resum=getModuleResum_({moduleCodi:modul.codi, classe:classe});
+      var found=null;
+      resum.students.forEach(function(s){ if(s.nom.trim()===nom && s.cognom.trim()===cognom) found=s; });
+      if(!found) return;
+      var hasData=false;
+      CAPS.forEach(function(cap){ var v=found.cells[cap]; if(v!=null){globalAcc[cap].s+=v;globalAcc[cap].c++;hasData=true;} });
+      if(hasData) modulData.push({codi:modul.codi, nom:modul.nom, cells:found.cells});
+    }catch(e){}
+  });
+  var globalCells={};
+  CAPS.forEach(function(cap){ globalCells[cap]=globalAcc[cap].c>0?Math.round(globalAcc[cap].s/globalAcc[cap].c):null; });
+  return {nom:nom, cognom:cognom, classe:classe, modules:modulData, global:{cells:globalCells}, capNoms:RESUM_NOMS};
 }
 
 /* ============== INICI ============== */

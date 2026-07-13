@@ -218,7 +218,7 @@ var state = { user:null, device:'pc', theme:'dark', view:'inici',
   activityParaules:'', _indDescExpanded:false,
   grup:null, hasGrups:false,
   // admin
-  adminTab:'usuaris',
+  adminTab:'usuaris', selectedAlumneId:null,
   // dashboards (mòdul obligatori)
   iniciClasse:null, iniciModul:null, resumClasse:null, resumModul:null, evModul:null, projModul:null, activModul:null };
 
@@ -268,20 +268,17 @@ function enterApp(){
   $('uName').textContent=(u.nom+' '+u.cognom).trim();$('uRole').textContent=u.rol;applyMode();applyTheme();
   var bp=$('btnPerfil'); if(bp) bp.style.display='';
   if(u.mustChangePassword){ renderForceChangePassword(); return; }
-  if(u.rol!=='professor'&&u.rol!=='admin'){
-    $('nav').innerHTML='';
-    $('content').innerHTML='<div class="empty">Aquesta fase es centra en el rol <b>professor</b>. Els rols admin/alumne es reintegraran més endavant.</div>';
-    return;
-  }
   buildNav();
   var mobileOnly=(state.device==='mobile');
-  var defaultView=(u.rol==='admin')?'usuaris':(mobileOnly?'registrar':'inici');
+  var defaultView=(u.rol==='admin')?'usuaris':(u.rol==='alumne')?'alumneresum':(mobileOnly?'registrar':'inici');
   go(defaultView);
 }
 function buildNav(){
   var navs;
   if(state.user&&state.user.rol==='admin'){
     navs=[['usuaris',"Gestió d'usuaris"],['actcataleg',"Gestió d'activitats"]];
+  } else if(state.user&&state.user.rol==='alumne'){
+    navs=[['alumneresum','El meu resum']];
   } else {
     navs=[['inici','Inici'],['registrar','Enregistrar evidències'],['evidencies','Evidències realitzades'],['resum','Resum classe'],['activitats','Activitats'],['projectes','Projectes']];
     if(state.device==='mobile') navs=[['registrar','Enregistrar evidències']];
@@ -300,6 +297,7 @@ function go(view){
   if(view==='projectes') return renderProjectes();
   if(view==='usuaris') return renderUsuaris();
   if(view==='actcataleg') return renderActCataleg();
+  if(view==='alumneresum') return renderAlumneResum();
 }
 
 /* ---------- selectors compartits (classe + mòdul) ---------- */
@@ -384,7 +382,8 @@ async function renderResum(){
   var d=r.data;
   var head='<th>Alumne</th>'+CAPS.map(function(c){return '<th class="cc" title="'+esc(d.capNoms[c]||c)+'">'+c.toUpperCase()+'</th>';}).join('');
   var rows=d.students.map(function(s){
-    return '<tr><td>'+esc(s.cognom)+', '+esc(s.nom)+'</td>'+
+    var click=s.id?(' style="cursor:pointer" onclick="openAlumneResum(\''+esc(s.id)+'\')" title="Veure resum global"'):'';
+    return '<tr'+click+'><td>'+esc(s.cognom)+', '+esc(s.nom)+'</td>'+
       CAPS.map(function(c){ var v=s.cells[c]; var col=scoreColor(v);
         if(col) return '<td class="cc"><span class="cell" style="background:'+col+'" title="'+v+'/10"></span></td>';
         return '<td class="cc"><span class="cell empty" title="sense dades"></span></td>'; }).join('')+'</tr>';
@@ -398,6 +397,56 @@ async function renderResum(){
 }
 function resumSetClasse(v){state.resumClasse=v;state.resumModul=null;renderResum();}
 function resumSetModul(v){state.resumModul=v;renderResum();}
+
+/* ====================== RESUM GLOBAL D'ALUMNE ====================== */
+function openAlumneResum(userId){ state.selectedAlumneId=userId; go('alumneresum'); }
+async function renderAlumneResum(){
+  var isAlumne=(state.user&&state.user.rol==='alumne');
+  var uid=isAlumne?state.user.id:state.selectedAlumneId;
+  if(!uid){ if(!isAlumne) return go('resum'); return; }
+  $('content').innerHTML='<div class="empty">Carregant resum global…</div>';
+  var r=await call('getAlumneGlobalResum',{userId:uid});
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error carregant dades.');
+  var d=r.data;
+  var capNoms=d.capNoms||CAP_NOMS;
+  var capHead=CAPS.map(function(cap){return '<th class="cc" title="'+esc(capNoms[cap]||cap)+'">'+cap.toUpperCase()+'</th>';}).join('');
+  var modRows=d.modules.map(function(m){
+    return '<tr><td class="mono" style="font-size:12px;white-space:nowrap;padding-right:12px">'+esc(m.codi)+'</td>'+
+      '<td style="font-size:13px;white-space:nowrap">'+esc(m.nom)+'</td>'+
+      CAPS.map(function(cap){ var v=m.cells[cap]; var col=scoreColor(v);
+        return col?'<td class="cc"><span class="cell" style="background:'+col+'" title="'+v+'/10"></span></td>':'<td class="cc"><span class="cell empty" title="sense dades"></span></td>';
+      }).join('')+'</tr>';
+  }).join('');
+  var globalRow='<tr style="border-top:2px solid var(--border)">'+
+    '<td colspan="2" style="font-size:13px;font-weight:700;padding:10px 4px">Mitjana global cicle</td>'+
+    CAPS.map(function(cap){ var v=d.global.cells[cap]; var col=scoreColor(v);
+      return col?'<td class="cc"><span class="cell" style="background:'+col+';box-shadow:0 0 0 2px var(--ring)" title="'+v+'/10"></span></td>':'<td class="cc"><span class="cell empty" title="sense dades"></span></td>';
+    }).join('')+'</tr>';
+  var backBtn=isAlumne?'':'<button class="btn sm ghost" onclick="go(\'resum\')">← Tornar</button>';
+  $('content').innerHTML=
+    '<div class="row" style="margin-bottom:18px;gap:12px;align-items:baseline">'+backBtn+
+      '<h2 class="page-title" style="margin:0">'+esc(d.cognom)+', '+esc(d.nom)+'</h2>'+
+      '<span class="muted" style="font-size:13px">'+esc(d.classe)+'</span>'+
+    '</div>'+
+    '<div class="panel" style="overflow:auto;padding:6px 8px">'+
+      '<table><thead><tr><th colspan="2">Mòdul</th>'+capHead+'</tr></thead>'+
+      '<tbody>'+(modRows||'<tr><td colspan="9" class="empty">Sense dades.</td></tr>')+globalRow+'</tbody></table>'+
+    '</div>'+
+    '<div class="two-col" style="margin-top:16px">'+
+      '<div class="panel"><h3>Perfil global de CC</h3><div style="display:grid;place-items:center"><canvas id="alumneRadar" width="300" height="300"></canvas></div></div>'+
+      '<div class="panel"><h3>Llegenda</h3>'+
+        '<div class="legend" style="flex-direction:column;gap:8px">'+
+          '<span><i style="background:#3fb27f"></i>Excel·lent (9-10)</span>'+
+          '<span><i style="background:#4f8ef7"></i>Notable (6-8)</span>'+
+          '<span><i style="background:#e0a23c"></i>Aprovat (3-5)</span>'+
+          '<span><i style="background:#e25563"></i>Insuficient (1-2)</span>'+
+          '<span><i style="background:var(--surface-3)"></i>Sense dades</span>'+
+        '</div>'+
+        (isAlumne?'<p class="muted" style="font-size:12.5px;margin-top:16px">Les valoracions es calculen a partir de les evidències registrades pels professors.</p>':'')+
+      '</div>'+
+    '</div>';
+  setTimeout(function(){ var cv=$('alumneRadar'); if(cv) drawRadar(cv, CAPS.map(function(cap){return d.global.cells[cap]||0;}), '#7aa9ff'); }, 50);
+}
 
 /* ====================== EVIDÈNCIES REALITZADES ====================== */
 async function renderEvidencies(){
