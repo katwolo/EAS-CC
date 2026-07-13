@@ -218,7 +218,7 @@ var state = { user:null, device:'pc', theme:'dark', view:'inici',
   activityParaules:'', _indDescExpanded:false,
   grup:null, hasGrups:false,
   // admin
-  adminTab:'usuaris', selectedAlumneId:null,
+  adminTab:'usuaris', selectedAlumneId:null, alumnesClasse:'', alumneResumBack:'resum',
   // dashboards (mòdul obligatori)
   iniciClasse:null, iniciModul:null, resumClasse:null, resumModul:null, evModul:null, projModul:null, activModul:null };
 
@@ -280,7 +280,7 @@ function buildNav(){
   } else if(state.user&&state.user.rol==='alumne'){
     navs=[['alumneresum','El meu resum']];
   } else {
-    navs=[['inici','Inici'],['registrar','Enregistrar evidències'],['evidencies','Evidències realitzades'],['resum','Resum classe'],['activitats','Activitats'],['projectes','Projectes']];
+    navs=[['inici','Inici'],['registrar','Enregistrar evidències'],['evidencies','Evidències realitzades'],['resum','Resum classe'],['alumnes','Alumnes'],['activitats','Activitats'],['projectes','Projectes']];
     if(state.device==='mobile') navs=[['registrar','Enregistrar evidències']];
   }
   $('nav').innerHTML=navs.map(function(n){return '<button data-v="'+n[0]+'" onclick="go(\''+n[0]+'\')">'+n[1]+'</button>';}).join('');
@@ -297,6 +297,7 @@ function go(view){
   if(view==='projectes') return renderProjectes();
   if(view==='usuaris') return renderUsuaris();
   if(view==='actcataleg') return renderActCataleg();
+  if(view==='alumnes') return renderAlumnes();
   if(view==='alumneresum') return renderAlumneResum();
 }
 
@@ -399,7 +400,7 @@ function resumSetClasse(v){state.resumClasse=v;state.resumModul=null;renderResum
 function resumSetModul(v){state.resumModul=v;renderResum();}
 
 /* ====================== RESUM GLOBAL D'ALUMNE ====================== */
-function openAlumneResum(userId){ state.selectedAlumneId=userId; go('alumneresum'); }
+function openAlumneResum(userId){ state.alumneResumBack=state.view; state.selectedAlumneId=userId; go('alumneresum'); }
 async function renderAlumneResum(){
   var isAlumne=(state.user&&state.user.rol==='alumne');
   var uid=isAlumne?state.user.id:state.selectedAlumneId;
@@ -422,7 +423,9 @@ async function renderAlumneResum(){
     CAPS.map(function(cap){ var v=d.global.cells[cap]; var col=scoreColor(v);
       return col?'<td class="cc"><span class="cell" style="background:'+col+';box-shadow:0 0 0 2px var(--ring)" title="'+v+'/10"></span></td>':'<td class="cc"><span class="cell empty" title="sense dades"></span></td>';
     }).join('')+'</tr>';
-  var backBtn=isAlumne?'':'<button class="btn sm ghost" onclick="go(\'resum\')">← Tornar</button>';
+  var backView=state.alumneResumBack||'resum';
+  var backLabel=backView==='alumnes'?'Alumnes':'Resum classe';
+  var backBtn=isAlumne?'':'<button class="btn sm ghost" onclick="go(\''+backView+'\')">← '+backLabel+'</button>';
   $('content').innerHTML=
     '<div class="row" style="margin-bottom:18px;gap:12px;align-items:baseline">'+backBtn+
       '<h2 class="page-title" style="margin:0">'+esc(d.cognom)+', '+esc(d.nom)+'</h2>'+
@@ -446,6 +449,36 @@ async function renderAlumneResum(){
       '</div>'+
     '</div>';
   setTimeout(function(){ var cv=$('alumneRadar'); if(cv) drawRadar(cv, CAPS.map(function(cap){return d.global.cells[cap]||0;}), '#7aa9ff'); }, 50);
+}
+
+/* ====================== LLISTA D'ALUMNES (professor) ====================== */
+async function renderAlumnes(){
+  $('content').innerHTML='<h2 class="page-title">Alumnes</h2><div id="alumnesTop"></div><div id="alumnesBody"><div class="empty">Tria una classe.</div></div>';
+  var classes=await loadAllClasses();
+  $('alumnesTop').innerHTML='<div class="panel"><div class="row">'+
+    '<label style="margin:0">Classe</label>'+
+    '<select class="field inline" onchange="alumnesSetClasse(this.value)">'+
+      '<option value="">— tria —</option>'+
+      classes.map(function(c){return '<option value="'+esc(c)+'" '+(c===state.alumnesClasse?'selected':'')+'>'+esc(c)+'</option>';}).join('')+
+    '</select></div></div>';
+  if(state.alumnesClasse) await alumnesLoad();
+}
+async function alumnesSetClasse(c){ state.alumnesClasse=c; await alumnesLoad(); }
+async function alumnesLoad(){
+  $('alumnesBody').innerHTML='<div class="empty">Carregant…</div>';
+  var r=await call('getStudents',{user:state.user, classe:state.alumnesClasse, moduleCodi:'', grup:null});
+  if(!r||!r.ok){$('alumnesBody').innerHTML='<div class="empty">Error carregant alumnes.</div>';return;}
+  var alumnes=(r.regular||[]).concat(r.pendents||[]);
+  if(!alumnes.length){$('alumnesBody').innerHTML='<div class="empty">Cap alumne trobat.</div>';return;}
+  var rows=alumnes.map(function(s){
+    return '<tr style="cursor:pointer" onclick="openAlumneResum(\''+esc(s.id)+'\')" title="Veure resum global">'+
+      '<td>'+esc(s.cognom)+', '+esc(s.nom)+'</td>'+
+      '<td class="muted" style="font-size:12px">'+esc(s.classe)+'</td>'+
+      '</tr>';
+  }).join('');
+  $('alumnesBody').innerHTML='<div class="panel" style="overflow:auto"><table>'+
+    '<thead><tr><th>Alumne</th><th>Classe</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody></table></div>';
 }
 
 /* ====================== EVIDÈNCIES REALITZADES ====================== */
