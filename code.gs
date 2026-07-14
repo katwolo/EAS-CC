@@ -501,9 +501,11 @@ function writeBlocks_(sheet, blocks){
   var lc=Math.max(T.blockCol, sheet.getLastColumn());
   var region=sheet.getRange(T.rProj, T.blockCol, lastRow-T.rProj+1, lc-T.blockCol+1);
   region.clearContent(); region.setBackground(null);
+  try{ region.setBorder(false,false,false,false,false,false); }catch(e){}
   var tcell=sheet.getRange(T.titleRow, T.blockCol);
   if(String(tcell.getValue()).trim()===''){ tcell.setValue('LES CAPACITATS CLAU - PROGRÉS I AVALUACIÓ ANUAL').setFontWeight('bold'); }
   var col=T.blockCol;
+  var SOLID=SpreadsheetApp.BorderStyle.SOLID, MEDIUM=SpreadsheetApp.BorderStyle.SOLID_MEDIUM;
   blocks.forEach(function(b){
     var w=b.inds.length; if(!w) return;
     setMerge_(sheet, T.rProj, col, w, 'Projecte '+b.projNum+(b.projNom?(' · '+b.projNom):''), 'FFF2CC', true);
@@ -525,20 +527,13 @@ function writeBlocks_(sheet, blocks){
         cell.setBackground('#'+(NOTA_SOFT[String(v)]||'FFFFFF'));
         cell.setHorizontalAlignment('center'); cell.setVerticalAlignment('middle'); }
     }); }
+    // bordes: fi interior + gruixut exterior per bloc
+    var bkRng=sheet.getRange(T.rProj,col,lastRow-T.rProj+1,w);
+    bkRng.setBorder(false,false,false,false,true,true,'#D0D0D0',SOLID);
+    bkRng.setBorder(true,true,true,true,null,null,'#555555',MEDIUM);
+    sheet.getRange(T.rInd,col,1,w).setBorder(null,null,true,null,null,null,'#555555',MEDIUM);
     col+=w;
   });
-  // bordes de la zona de blocs
-  if(totalW>0){
-    var dataLast=sheet.getLastRow();
-    if(dataLast>=T.rProj){
-      var SOLID=SpreadsheetApp.BorderStyle.SOLID, MEDIUM=SpreadsheetApp.BorderStyle.SOLID_MEDIUM;
-      sheet.getRange(T.rProj,T.blockCol,dataLast-T.rProj+1,totalW)
-        .setBorder(true,true,true,true,true,true,'#CCCCCC',SOLID);
-      if(dataLast>=T.rosterRow)
-        sheet.getRange(T.rInd,T.blockCol,1,totalW)
-          .setBorder(null,null,true,null,null,null,'#999999',MEDIUM);
-    }
-  }
 }
 function readRosterRows_(sheet){
   var T=CONFIG.modTab, last=sheet.getLastRow(); var out=[];
@@ -600,31 +595,19 @@ function rebuildResum_(ss, letter){
     if(means.length) paintScore_(res, row, R.notaCol, Math.round(means.reduce(function(a,b){return a+b;},0)/means.length));
     projects.forEach(function(pr){ RESUM_CAPS.forEach(function(cap,i){ var d=perProj[rr.row][pr.num][cap]; if(d&&d.c) paintScore_(res,row,projCols[pr.num]+i,Math.round(d.s/d.c)); }); });
   });
-  // bordes del Resum
+  // bordes del Resum — per bloc: extern gruixut, interior fi
   if(roster.length>0){
     var resLast=R.rosterRow+roster.length-1;
     var SOLID=SpreadsheetApp.BorderStyle.SOLID, MEDIUM=SpreadsheetApp.BorderStyle.SOLID_MEDIUM;
-    var light='#CCCCCC', mid='#999999';
-    // títol fila 4 (cada bloc per separat, el merge ja el delimita)
-    res.getRange(R.rTitle,R.moduleCol,1,R.capsPerBlock).setBorder(true,true,true,true,null,null,mid,SOLID);
-    res.getRange(R.rTitle,R.notaCol,1,1).setBorder(true,true,true,true,null,null,mid,SOLID);
-    // bloc de mòdul global (rCap fins resLast)
-    res.getRange(R.rCap,R.moduleCol,resLast-R.rCap+1,R.capsPerBlock)
-      .setBorder(true,true,true,true,true,true,light,SOLID);
-    res.getRange(R.rHeader,R.moduleCol,1,R.capsPerBlock)
-      .setBorder(null,null,true,null,null,null,mid,MEDIUM);
-    // nota final (col D, rCap fins resLast)
-    res.getRange(R.rCap,R.notaCol,resLast-R.rCap+1,1)
-      .setBorder(true,true,true,true,null,null,light,SOLID);
-    // blocs per projecte
-    projects.forEach(function(pr){
-      var pc=projCols[pr.num];
-      res.getRange(R.rTitle,pc,1,R.capsPerBlock).setBorder(true,true,true,true,null,null,mid,SOLID);
-      res.getRange(R.rCap,pc,resLast-R.rCap+1,R.capsPerBlock)
-        .setBorder(true,true,true,true,true,true,light,SOLID);
-      res.getRange(R.rHeader,pc,1,R.capsPerBlock)
-        .setBorder(null,null,true,null,null,null,mid,MEDIUM);
-    });
+    var applyBlk=function(c,w){
+      var bk=res.getRange(R.rTitle,c,resLast-R.rTitle+1,w);
+      bk.setBorder(false,false,false,false,true,true,'#D0D0D0',SOLID);
+      bk.setBorder(true,true,true,true,null,null,'#555555',MEDIUM);
+      res.getRange(R.rHeader,c,1,w).setBorder(null,null,true,null,null,null,'#555555',MEDIUM);
+    };
+    applyBlk(R.notaCol, 1);
+    applyBlk(R.moduleCol, R.capsPerBlock);
+    projects.forEach(function(pr){ applyBlk(projCols[pr.num], R.capsPerBlock); });
   }
 }
 function paintScore_(sheet,row,col,n){
