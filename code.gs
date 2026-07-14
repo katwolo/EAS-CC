@@ -36,6 +36,8 @@ var CONFIG = {
 var CAPS = ['c1','c2','c3','c4','c5','c6','c7'];
 var CAP_COLORS = { c1:'B4A7D6', c2:'FFE599', c3:'A4C2F4', c4:'B6D7A8', c5:'A2C4C9', c6:'F9CB9C', c7:'EA9999' };
 var CAP_SOFT   = { c1:'D9D2E9', c2:'FFF2CC', c3:'C9DAF8', c4:'D9EAD3', c5:'D0E0E3', c6:'FCE5CD', c7:'F4CCCC' };
+// Versions suaus (pastel) dels colors de nota, per al format de Sheets
+var NOTA_SOFT  = { '1':'F5C0C5', '4':'FCE8BC', '7':'C5D8F7', '10':'B3DDD1', 'NA':'EBEBEB' };
 // Ordre i noms tal com apareixen al Resum de la plantilla
 var RESUM_CAPS = ['c1','c3','c5','c4','c2','c6','c7'];
 var RESUM_NOMS = { c1:'Organització', c3:'Responsabilitat', c5:'Treball equip', c4:'Autonomia', c2:'Iniciativa', c6:'Relacions personals', c7:'Resolució de problemes' };
@@ -428,7 +430,7 @@ function writeMerged_(sheet,row,col,width,text,fill,bold){
 function setCell_(sheet,row,col,text,fill,bold){
   var cell=sheet.getRange(row,col); cell.setValue(text);
   if(fill) cell.setBackground('#'+fill); if(bold) cell.setFontWeight('bold');
-  cell.setWrap(true); cell.setVerticalAlignment('middle');
+  cell.setWrap(true); cell.setVerticalAlignment('middle'); cell.setHorizontalAlignment('center');
 }
 
 /* ============== LLEGIR BLOCS d'una pestanya de classe ============== */
@@ -478,14 +480,15 @@ function sortInds_(inds){ return inds.slice().sort(function(a,b){
   if(ca!==cb) return ca-cb; return indNum_(a.codi)-indNum_(b.codi); }); }
 function ensureCols_(sheet,n){ var c=sheet.getMaxColumns(); if(c<n){ try{ sheet.insertColumnsAfter(c, n-c); }catch(e){} } }
 function ensureRows_(sheet,n){ var r=sheet.getMaxRows(); if(r<n){ try{ sheet.insertRowsAfter(r, n-r); }catch(e){} } }
-/* "banda": text a la 1a cel·la + color de fons a totes les columnes, SENSE combinar */
+/* combina cel·les realment, centra i aplica color */
 function setMerge_(sheet,row,col,width,text,fill,bold){
-  for(var i=0;i<width;i++){ var cell=sheet.getRange(row,col+i);
-    cell.setValue(i===0?text:'');
-    if(fill){ try{ cell.setBackground('#'+fill); }catch(e){} }
-    cell.setVerticalAlignment('middle');
-  }
-  var first=sheet.getRange(row,col); if(bold) first.setFontWeight('bold'); first.setHorizontalAlignment('left');
+  var rng=sheet.getRange(row,col,1,width);
+  if(width>1){ try{rng.breakApart();}catch(e){} try{rng.merge();}catch(e){} }
+  rng.setVerticalAlignment('middle');
+  if(fill){ try{rng.setBackground('#'+fill);}catch(e){} }
+  var cell=sheet.getRange(row,col); cell.setValue(text);
+  if(bold) cell.setFontWeight('bold');
+  cell.setHorizontalAlignment('center');
 }
 /* reescriu TOTA la zona de blocs (D4 cap avall) a partir d'un model, ordenats per projecte */
 function writeBlocks_(sheet, blocks){
@@ -518,10 +521,24 @@ function writeBlocks_(sheet, blocks){
     if(b.notes){ Object.keys(b.notes).forEach(function(row){ var arr=b.notes[row];
       for(var i=0;i<w;i++){ var v=arr[i]; if(v===''||v===undefined||v===null) continue;
         var cell=sheet.getRange(Number(row), col+i);
-        cell.setValue(v==='NA'?'NA':Number(v)); cell.setBackground('#'+(CONFIG.notaFill[String(v)]||'FFFFFF')); }
+        cell.setValue(v==='NA'?'NA':Number(v));
+        cell.setBackground('#'+(NOTA_SOFT[String(v)]||'FFFFFF'));
+        cell.setHorizontalAlignment('center'); cell.setVerticalAlignment('middle'); }
     }); }
     col+=w;
   });
+  // bordes de la zona de blocs
+  if(totalW>0){
+    var dataLast=sheet.getLastRow();
+    if(dataLast>=T.rProj){
+      var SOLID=SpreadsheetApp.BorderStyle.SOLID, MEDIUM=SpreadsheetApp.BorderStyle.SOLID_MEDIUM;
+      sheet.getRange(T.rProj,T.blockCol,dataLast-T.rProj+1,totalW)
+        .setBorder(true,true,true,true,true,true,'#CCCCCC',SOLID);
+      if(dataLast>=T.rosterRow)
+        sheet.getRange(T.rInd,T.blockCol,1,totalW)
+          .setBorder(null,null,true,null,null,null,'#999999',MEDIUM);
+    }
+  }
 }
 function readRosterRows_(sheet){
   var T=CONFIG.modTab, last=sheet.getLastRow(); var out=[];
@@ -583,11 +600,38 @@ function rebuildResum_(ss, letter){
     if(means.length) paintScore_(res, row, R.notaCol, Math.round(means.reduce(function(a,b){return a+b;},0)/means.length));
     projects.forEach(function(pr){ RESUM_CAPS.forEach(function(cap,i){ var d=perProj[rr.row][pr.num][cap]; if(d&&d.c) paintScore_(res,row,projCols[pr.num]+i,Math.round(d.s/d.c)); }); });
   });
+  // bordes del Resum
+  if(roster.length>0){
+    var resLast=R.rosterRow+roster.length-1;
+    var SOLID=SpreadsheetApp.BorderStyle.SOLID, MEDIUM=SpreadsheetApp.BorderStyle.SOLID_MEDIUM;
+    var light='#CCCCCC', mid='#999999';
+    // títol fila 4 (cada bloc per separat, el merge ja el delimita)
+    res.getRange(R.rTitle,R.moduleCol,1,R.capsPerBlock).setBorder(true,true,true,true,null,null,mid,SOLID);
+    res.getRange(R.rTitle,R.notaCol,1,1).setBorder(true,true,true,true,null,null,mid,SOLID);
+    // bloc de mòdul global (rCap fins resLast)
+    res.getRange(R.rCap,R.moduleCol,resLast-R.rCap+1,R.capsPerBlock)
+      .setBorder(true,true,true,true,true,true,light,SOLID);
+    res.getRange(R.rHeader,R.moduleCol,1,R.capsPerBlock)
+      .setBorder(null,null,true,null,null,null,mid,MEDIUM);
+    // nota final (col D, rCap fins resLast)
+    res.getRange(R.rCap,R.notaCol,resLast-R.rCap+1,1)
+      .setBorder(true,true,true,true,null,null,light,SOLID);
+    // blocs per projecte
+    projects.forEach(function(pr){
+      var pc=projCols[pr.num];
+      res.getRange(R.rTitle,pc,1,R.capsPerBlock).setBorder(true,true,true,true,null,null,mid,SOLID);
+      res.getRange(R.rCap,pc,resLast-R.rCap+1,R.capsPerBlock)
+        .setBorder(true,true,true,true,true,true,light,SOLID);
+      res.getRange(R.rHeader,pc,1,R.capsPerBlock)
+        .setBorder(null,null,true,null,null,null,mid,MEDIUM);
+    });
+  }
 }
 function paintScore_(sheet,row,col,n){
   var cell=sheet.getRange(row,col); cell.setValue(n);
   var key=(n<=2)?'1':(n<=5)?'4':(n<=8)?'7':'10';
-  cell.setBackground('#'+CONFIG.notaFill[key]); cell.setHorizontalAlignment('center');
+  cell.setBackground('#'+NOTA_SOFT[key]);
+  cell.setHorizontalAlignment('center'); cell.setVerticalAlignment('middle');
 }
 function capByName_(name){
   name=String(name||'').toLowerCase();
