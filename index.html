@@ -458,7 +458,8 @@ async function renderAlumneResum(){
     return '<tr><td class="mono" style="font-size:12px;white-space:nowrap;padding-right:12px">'+esc(m.codi)+'</td>'+
       '<td style="font-size:13px;white-space:nowrap">'+esc(m.nom)+'</td>'+
       CAPS.map(function(cap){ var v=m.cells[cap]; var col=scoreColor(v);
-        return col?'<td class="cc"><span class="cell" style="background:'+col+'" title="'+v+'/10"></span></td>':'<td class="cc"><span class="cell empty"></span></td>';
+        var t=(!isAlumne&&v!=null)?' title="'+v+'/10"':'';
+        return col?'<td class="cc"><span class="cell" style="background:'+col+'"'+t+'></span></td>':'<td class="cc"><span class="cell empty"></span></td>';
       }).join('')+'<td></td></tr>';
   }
   function summaryRow(label, g, borderStyle, bgStyle){
@@ -468,7 +469,8 @@ async function renderAlumneResum(){
     return '<tr style="'+(borderStyle||'')+(bgStyle?';'+bgStyle:'')+'">'
       +'<td colspan="2" style="font-size:13px;font-weight:700;padding:8px 4px;white-space:nowrap">'+esc(label)+'</td>'
       +CAPS.map(function(cap){ var v=cells[cap]; var col=scoreColor(v);
-        return col?'<td class="cc"><span class="cell" style="background:'+col+';box-shadow:0 0 0 2px var(--ring)" title="'+v+'/10"></span></td>':'<td class="cc"><span class="cell empty"></span></td>';
+        var t=(!isAlumne&&v!=null)?' title="'+v+'/10"':'';
+        return col?'<td class="cc"><span class="cell" style="background:'+col+';box-shadow:0 0 0 2px var(--ring)"'+t+'></span></td>':'<td class="cc"><span class="cell empty"></span></td>';
       }).join('')
       +'<td style="text-align:center;padding:0 10px;font-size:14px">'+notaHtml+'</td>'
       +'</tr>';
