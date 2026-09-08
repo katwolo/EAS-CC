@@ -62,10 +62,17 @@
   #app{display:none;min-height:100%;flex-direction:column}
   header.top{position:sticky;top:0;z-index:50;background:var(--header-bg);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:0 22px;display:flex;align-items:center;gap:14px;height:58px;flex-wrap:wrap}
   header.top .brand{margin:0}.header.top .brand h1{font-size:15px}
-  .nav{display:flex;gap:4px;margin-left:8px;flex-wrap:wrap}
-  .nav button{background:transparent;border:none;color:var(--muted);padding:9px 13px;border-radius:9px;font-size:13.5px;font-weight:500;transition:.15s}
+  .nav{display:flex;gap:4px;margin-left:8px;flex-wrap:wrap;align-items:center}
+  .nav button{background:transparent;border:none;color:var(--muted);padding:9px 13px;border-radius:9px;font-size:13.5px;font-weight:500;transition:.15s;cursor:pointer}
   .nav button:hover{color:var(--text);background:var(--surface-2)}
   .nav button.active{color:var(--accent-2);background:var(--accent-soft)}
+  .nav-group{position:relative;display:inline-flex}
+  .nav-group>.nav-gBtn{display:flex;align-items:center;gap:4px}
+  .nav-group>.nav-gBtn::after{content:'▾';font-size:10px;opacity:.55;margin-left:1px}
+  .nav-dropdown{display:none;position:absolute;top:calc(100% + 5px);left:0;min-width:152px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.14);z-index:200;padding:4px}
+  .nav-group:hover .nav-dropdown,.nav-group:focus-within .nav-dropdown{display:block}
+  .nav-dropdown button{display:block;width:100%;text-align:left;border-radius:7px;padding:8px 12px;font-size:13px;white-space:nowrap}
+  .nav-group.active>.nav-gBtn{color:var(--accent-2);background:var(--accent-soft)}
   .userbox{margin-left:auto;display:flex;align-items:center;gap:10px}
   .userbox .who{text-align:right;line-height:1.2}.userbox .who .n{font-size:13px;font-weight:600}.userbox .who .r{font-size:11px;color:var(--muted);text-transform:uppercase}
   .modepill{font-family:var(--mono);font-size:11px;color:var(--accent-2);background:var(--accent-soft);padding:3px 9px;border-radius:20px;cursor:pointer}
@@ -274,21 +281,51 @@ function enterApp(){
   go(defaultView);
 }
 function buildNav(){
-  var navs;
   if(state.user&&state.user.rol==='admin'){
-    navs=[['usuaris',"Gestió d'usuaris"],['actcataleg',"Gestió d'activitats"]];
-  } else if(state.user&&state.user.rol==='alumne'){
-    navs=[['alumneresum','El meu resum']];
-  } else {
-    navs=[['inici','Inici'],['registrar','Enregistrar evidències'],['evidencies','Evidències realitzades'],['resum','Resum classe'],['alumnes','Alumnes'],['activitats','Activitats'],['projectes','Projectes']];
-    if(state.device==='mobile') navs=[['registrar','Enregistrar evidències']];
+    $('nav').innerHTML=[['usuaris',"Gestió d'usuaris"],['actcataleg',"Gestió d'activitats"]].map(function(n){
+      return '<button data-v="'+n[0]+'" onclick="go(\''+n[0]+'\')">'+n[1]+'</button>';
+    }).join('');
+    return;
   }
-  $('nav').innerHTML=navs.map(function(n){return '<button data-v="'+n[0]+'" onclick="go(\''+n[0]+'\')">'+n[1]+'</button>';}).join('');
-  return navs;
+  if(state.user&&state.user.rol==='alumne'){
+    $('nav').innerHTML='<button data-v="alumneresum" onclick="go(\'alumneresum\')">El meu resum</button>';
+    return;
+  }
+  if(state.device==='mobile'){
+    $('nav').innerHTML='<button data-v="registrar" onclick="go(\'registrar\')">Enregistrar</button>';
+    return;
+  }
+  // Professor desktop — amb submenús
+  var groups=[
+    {label:'Inici', view:'inici'},
+    {label:'Evidències', children:[{view:'registrar',label:'Enregistrar'},{view:'evidencies',label:'Historial'}]},
+    {label:'Gestió Alumnat', children:[{view:'resum',label:'Resum MP'},{view:'alumnes',label:'Alumnat'}]},
+    {label:'Gestió MP', children:[{view:'activitats',label:'Activitats'},{view:'projectes',label:'Projectes'}]}
+  ];
+  $('nav').innerHTML=groups.map(function(g){
+    if(!g.children) return '<button data-v="'+g.view+'" onclick="go(\''+g.view+'\')">'+g.label+'</button>';
+    var childViews=g.children.map(function(c){return c.view;}).join(',');
+    return '<div class="nav-group" data-views="'+childViews+'">'
+      +'<button class="nav-gBtn">'+g.label+'</button>'
+      +'<div class="nav-dropdown">'+g.children.map(function(c){
+        return '<button data-v="'+c.view+'" onclick="go(\''+c.view+'\')">'+c.label+'</button>';
+      }).join('')+'</div>'
+      +'</div>';
+  }).join('');
 }
 function go(view){
   state.view=view;
-  Array.prototype.forEach.call($('nav').children,function(b){b.classList.toggle('active',b.getAttribute('data-v')===view);});
+  Array.prototype.forEach.call($('nav').children,function(el){
+    if(el.classList&&el.classList.contains('nav-group')){
+      var views=(el.getAttribute('data-views')||'').split(',');
+      el.classList.toggle('active',views.indexOf(view)>=0);
+      Array.prototype.forEach.call(el.querySelectorAll('button[data-v]'),function(b){
+        b.classList.toggle('active',b.getAttribute('data-v')===view);
+      });
+    } else if(el.getAttribute){
+      el.classList.toggle('active',el.getAttribute('data-v')===view);
+    }
+  });
   if(view==='inici') return renderInici();
   if(view==='registrar') return renderRegistrar();
   if(view==='evidencies') return renderEvidencies();
@@ -370,7 +407,7 @@ function iniciSetModul(v){state.iniciModul=v;renderInici();}
 
 /* ====================== RESUM CLASSE ====================== */
 async function renderResum(){
-  $('content').innerHTML='<h2 class="page-title">Resum classe</h2><p class="page-sub">Nivell per competència del mòdul (només colors). Passa el ratolí per veure el valor.</p><div id="resumTop"></div><div id="resumBody"></div>';
+  $('content').innerHTML='<h2 class="page-title">Resum MP</h2><p class="page-sub">Nivell per competència del mòdul (només colors). Passa el ratolí per veure el valor.</p><div id="resumTop"></div><div id="resumBody"></div>';
   var classes=await loadAllClasses();
   if(!state.resumClasse && classes.length) state.resumClasse=classes[0];
   var modules=await loadModulesForClasse(state.resumClasse);
@@ -424,7 +461,7 @@ async function renderAlumneResum(){
       return col?'<td class="cc"><span class="cell" style="background:'+col+';box-shadow:0 0 0 2px var(--ring)" title="'+v+'/10"></span></td>':'<td class="cc"><span class="cell empty" title="sense dades"></span></td>';
     }).join('')+'</tr>';
   var backView=state.alumneResumBack||'resum';
-  var backLabel=backView==='alumnes'?'Alumnes':'Resum classe';
+  var backLabel=backView==='alumnes'?'Alumnat':'Resum MP';
   var backBtn=isAlumne?'':'<button class="btn sm ghost" onclick="go(\''+backView+'\')">← '+backLabel+'</button>';
   $('content').innerHTML=
     '<div class="row" style="margin-bottom:18px;gap:12px;align-items:baseline">'+backBtn+
@@ -453,7 +490,7 @@ async function renderAlumneResum(){
 
 /* ====================== LLISTA D'ALUMNES (professor) ====================== */
 async function renderAlumnes(){
-  $('content').innerHTML='<h2 class="page-title">Alumnes</h2><div id="alumnesTop"></div><div id="alumnesBody"><div class="empty">Tria una classe.</div></div>';
+  $('content').innerHTML='<h2 class="page-title">Alumnat</h2><div id="alumnesTop"></div><div id="alumnesBody"><div class="empty">Tria una classe.</div></div>';
   var classes=await loadAllClasses();
   $('alumnesTop').innerHTML='<div class="panel"><div class="row">'+
     '<label style="margin:0">Classe</label>'+
@@ -560,7 +597,7 @@ async function exportAlumnesPDF(){
 
 /* ====================== EVIDÈNCIES REALITZADES ====================== */
 async function renderEvidencies(){
-  $('content').innerHTML='<h2 class="page-title">Evidències realitzades</h2><p class="page-sub">Registres del mòdul. Pots editar-los o eliminar-los.</p><div id="evTop"></div><div id="evBody"></div>';
+  $('content').innerHTML='<h2 class="page-title">Historial</h2><p class="page-sub">Registres del mòdul. Pots editar-los o eliminar-los.</p><div id="evTop"></div><div id="evBody"></div>';
   var modules=await loadAllModules();
   if(!state.evModul && modules.length) state.evModul=modules[0].codi;
   $('evTop').innerHTML='<div class="panel"><div class="row"><label style="margin:0">Mòdul</label>'+
@@ -728,8 +765,8 @@ async function editProject(p){
   var rp=await call('getAllProfs'); var profs=rp.ok?rp.profs:[];
   var isNew=!p; p=p||{num:'',nom:'',profs:[]};
   openModal('<h3>'+(isNew?'Nou projecte':'Editar projecte')+'</h3>'+
-    '<label>Núm. projecte</label><input id="pr_num" class="field" style="width:100%" value="'+esc(p.num)+'">'+
-    '<label>Nom del projecte</label><input id="pr_nom" class="field" style="width:100%" value="'+esc(p.nom)+'">'+
+    '<label>Núm. projecte <span class="muted" style="font-weight:400;font-size:12px">(només el número: 1, 2, 3...)</span></label><input id="pr_num" class="field" style="width:100%" value="'+esc(p.num)+'">'+
+    '<label>Nom del projecte <span class="muted" style="font-weight:400;font-size:12px">(segons la programació didàctica)</span></label><input id="pr_nom" class="field" style="width:100%" value="'+esc(p.nom)+'">'+
     '<label>Professorat amb accés</label><div class="checks" style="display:flex;flex-wrap:wrap;gap:8px">'+
       profs.map(function(pf){var on=p.profs.indexOf(pf.username)>-1;return '<label style="display:flex;gap:6px;align-items:center;background:var(--surface-2);border:1px solid var(--border);padding:6px 10px;border-radius:8px;font-size:13px"><input type="checkbox" class="pr_prof" value="'+esc(pf.username)+'" '+(on?'checked':'')+'> '+esc(pf.nom)+'</label>';}).join('')+'</div>'+
     '<div class="actions"><button class="btn ghost" onclick="closeModal()">Cancel·la</button><button class="btn" onclick="saveProject()">Desar</button></div>');
