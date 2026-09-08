@@ -448,18 +448,45 @@ async function renderAlumneResum(){
   var d=r.data;
   var capNoms=d.capNoms||CAP_NOMS;
   var capHead=CAPS.map(function(cap){return '<th class="cc" title="'+esc(capNoms[cap]||cap)+'">'+cap.toUpperCase()+'</th>';}).join('');
-  var modRows=d.modules.map(function(m){
+  var nc=CAPS.length+3; // columnes totals (codi + nom + 7 CC + nota)
+
+  function sepRow(label){
+    return '<tr><td colspan="'+nc+'" style="font-size:11px;font-weight:700;text-transform:uppercase;'+
+      'letter-spacing:.06em;color:var(--muted);padding:12px 4px 4px;border-top:1px solid var(--border)">'+esc(label)+'</td></tr>';
+  }
+  function modRow(m){
     return '<tr><td class="mono" style="font-size:12px;white-space:nowrap;padding-right:12px">'+esc(m.codi)+'</td>'+
       '<td style="font-size:13px;white-space:nowrap">'+esc(m.nom)+'</td>'+
       CAPS.map(function(cap){ var v=m.cells[cap]; var col=scoreColor(v);
-        return col?'<td class="cc"><span class="cell" style="background:'+col+'" title="'+v+'/10"></span></td>':'<td class="cc"><span class="cell empty" title="sense dades"></span></td>';
-      }).join('')+'</tr>';
-  }).join('');
-  var globalRow='<tr style="border-top:2px solid var(--border)">'+
-    '<td colspan="2" style="font-size:13px;font-weight:700;padding:10px 4px">Mitjana global cicle</td>'+
-    CAPS.map(function(cap){ var v=d.global.cells[cap]; var col=scoreColor(v);
-      return col?'<td class="cc"><span class="cell" style="background:'+col+';box-shadow:0 0 0 2px var(--ring)" title="'+v+'/10"></span></td>':'<td class="cc"><span class="cell empty" title="sense dades"></span></td>';
-    }).join('')+'</tr>';
+        return col?'<td class="cc"><span class="cell" style="background:'+col+'" title="'+v+'/10"></span></td>':'<td class="cc"><span class="cell empty"></span></td>';
+      }).join('')+'<td></td></tr>';
+  }
+  function summaryRow(label, g, borderStyle, bgStyle){
+    var nota=g&&g.nota!=null?g.nota:null;
+    var cells=g&&g.cells?g.cells:{};
+    var notaHtml=nota!=null?('<strong>'+nota.toFixed(1)+'</strong>'):'<span style="color:var(--muted)">—</span>';
+    return '<tr style="'+(borderStyle||'')+(bgStyle?';'+bgStyle:'')+'">'
+      +'<td colspan="2" style="font-size:13px;font-weight:700;padding:8px 4px;white-space:nowrap">'+esc(label)+'</td>'
+      +CAPS.map(function(cap){ var v=cells[cap]; var col=scoreColor(v);
+        return col?'<td class="cc"><span class="cell" style="background:'+col+';box-shadow:0 0 0 2px var(--ring)" title="'+v+'/10"></span></td>':'<td class="cc"><span class="cell empty"></span></td>';
+      }).join('')
+      +'<td style="text-align:center;padding:0 10px;font-size:14px">'+notaHtml+'</td>'
+      +'</tr>';
+  }
+
+  var mods1r=(d.modules||[]).filter(function(m){return m.curs==='1';});
+  var mods2n=(d.modules||[]).filter(function(m){return m.curs==='2';});
+  var noData='<tr><td colspan="'+nc+'" class="empty" style="font-size:12px;padding:6px 4px">Sense dades per a aquest curs.</td></tr>';
+
+  var tbody=
+    sepRow('1r curs')+
+    (mods1r.length?mods1r.map(modRow).join(''):noData)+
+    summaryRow('Nota 1r curs', d.global1r, 'border-top:2px solid var(--border)')+
+    sepRow('2n curs')+
+    (mods2n.length?mods2n.map(modRow).join(''):noData)+
+    summaryRow('Nota 2n curs', d.global2n, 'border-top:2px solid var(--border)')+
+    summaryRow('Nota global cicle', d.globalCicle, 'border-top:3px solid var(--accent)', 'background:var(--accent-soft)');
+
   var backView=state.alumneResumBack||'resum';
   var backLabel=backView==='alumnes'?'Alumnat':'Resum MP';
   var backBtn=isAlumne?'':'<button class="btn sm ghost" onclick="go(\''+backView+'\')">← '+backLabel+'</button>';
@@ -469,8 +496,9 @@ async function renderAlumneResum(){
       '<span class="muted" style="font-size:13px">'+esc(d.classe)+'</span>'+
     '</div>'+
     '<div class="panel" style="overflow:auto;padding:6px 8px">'+
-      '<table><thead><tr><th colspan="2">Mòdul</th>'+capHead+'</tr></thead>'+
-      '<tbody>'+(modRows||'<tr><td colspan="9" class="empty">Sense dades.</td></tr>')+globalRow+'</tbody></table>'+
+      '<table><thead><tr><th colspan="2">Mòdul</th>'+capHead+
+        '<th style="text-align:center;min-width:54px;font-size:12px">Nota</th></tr></thead>'+
+      '<tbody>'+tbody+'</tbody></table>'+
     '</div>'+
     '<div class="two-col" style="margin-top:16px">'+
       '<div class="panel"><h3>Perfil global de CC</h3><div style="display:grid;place-items:center"><canvas id="alumneRadar" width="300" height="300"></canvas></div></div>'+
@@ -485,7 +513,7 @@ async function renderAlumneResum(){
         (isAlumne?'<p class="muted" style="font-size:12.5px;margin-top:16px">Les valoracions es calculen a partir de les evidències registrades pels professors.</p>':'')+
       '</div>'+
     '</div>';
-  setTimeout(function(){ var cv=$('alumneRadar'); if(cv) drawRadar(cv, CAPS.map(function(cap){return d.global.cells[cap]||0;}), '#7aa9ff'); }, 50);
+  setTimeout(function(){ var cv=$('alumneRadar'); if(cv) drawRadar(cv, CAPS.map(function(cap){return (d.globalCicle&&d.globalCicle.cells[cap])||0;}), '#7aa9ff'); }, 50);
 }
 
 /* ====================== LLISTA D'ALUMNES (professor) ====================== */
@@ -555,6 +583,7 @@ async function exportAlumnesPDF(){
       var scoreHtml=v!=null?('<span style="color:'+(col||'#9ca3af')+';font-weight:700">'+v+'/10</span>'):'<span style="color:#ccc">—</span>';
       return '<tr><td><span class="dot" style="'+dot+'"></span>'+e2(RNAMES[cap])+'</td><td style="text-align:right">'+scoreHtml+'</td></tr>';
     }).join('');
+    var notaGlobal=s.nota!=null?'<div class="nota-global">Nota global cicle: <strong>'+Number(s.nota).toFixed(1)+'</strong></div>':'';
     return '<div class="page">'+
       '<div class="top-bar"><div class="cc-badge">CC</div>'+
       '<div><div style="font-size:20px;font-weight:700">Resum de les CC</div>'+
@@ -564,6 +593,7 @@ async function exportAlumnesPDF(){
         '<div>'+svg+'</div>'+
         '<div>'+
           '<table class="cc-t"><tbody>'+tableRows+'</tbody></table>'+
+          notaGlobal+
           '<div class="legend">'+
             '<div class="lr"><span class="dot" style="background:#3fb27f"></span>Excel·lent (9-10)</div>'+
             '<div class="lr"><span class="dot" style="background:#4f8ef7"></span>Notable (6-8)</div>'+
@@ -587,6 +617,7 @@ async function exportAlumnesPDF(){
     '.dot{display:inline-block;width:13px;height:13px;border-radius:50%;margin-right:6px;vertical-align:middle;flex-shrink:0}'+
     '.legend{margin-top:16px;display:flex;flex-direction:column;gap:5px}'+
     '.lr{display:flex;align-items:center;gap:6px;font-size:11px;color:#6b7280}'+
+    '.nota-global{margin-top:12px;font-size:14px;color:#111;padding:8px 10px;background:#f0f4ff;border-radius:6px;border-left:3px solid #4f8ef7}'+
     '.note{margin-top:16px;font-size:10.5px;color:#aaa;line-height:1.5}';
   var html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>Resum CC - Classe '+e2(classe)+'</title><style>'+css+'</style></head><body>'+pages+'</body></html>';
   var w=window.open('','_blank');
