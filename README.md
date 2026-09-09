@@ -4,6 +4,10 @@
 
 ---
 
+> 🤖 **Assistent virtual:** Tens dubtes sobre l'aplicació? Pregunta a l'assistent EAS CC, disponible les 24 h en català → [Obrir assistent](https://gemini.google.com/gem/874ceee4f57e)
+
+---
+
 ## Índex
 
 1. [Accés a l'aplicació](#1-accés-a-laplicació)
