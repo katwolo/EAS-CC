@@ -95,6 +95,11 @@
   .legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:14px;font-size:12px;color:var(--muted)}
   .legend span{display:flex;align-items:center;gap:6px}.legend i{width:11px;height:11px;border-radius:3px}
   canvas{max-width:100%}
+  /* help fab */
+  #helpFab{position:fixed;bottom:22px;right:22px;z-index:999;width:46px;height:46px;border-radius:50%;background:var(--accent);color:#fff;border:none;font-size:20px;font-weight:700;box-shadow:0 4px 18px -4px rgba(79,142,247,.65);cursor:pointer;display:none;align-items:center;justify-content:center;transition:transform .15s,filter .15s;line-height:1}
+  #helpFab:hover{transform:scale(1.1);filter:brightness(1.12)}
+  #helpFab:active{transform:scale(.96)}
+  #helpFab title{display:none}
   .distbar{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:8px 0}
   .distbar i{display:block;height:100%}
 
@@ -266,7 +271,7 @@ async function doLogin(username,password){
 }
 function formLogin(){doLogin($('u').value.trim(),$('p').value);}
 document.addEventListener('keydown',function(e){if(e.key==='Enter'&&$('app').style.display!=='flex')formLogin();});
-function logout(){state.user=null;$('app').style.display='none';$('login').style.display='flex';setPing('');}
+function logout(){state.user=null;$('app').style.display='none';$('login').style.display='flex';setPing('');var fab=$('helpFab');if(fab)fab.style.display='none';}
 
 /* entrada + nav */
 function enterApp(){
@@ -274,6 +279,7 @@ function enterApp(){
   $('login').style.display='none';$('app').style.display='flex';
   $('uName').textContent=(u.nom+' '+u.cognom).trim();$('uRole').textContent=u.rol;applyMode();applyTheme();
   var bp=$('btnPerfil'); if(bp) bp.style.display='';
+  var fab=$('helpFab'); if(fab) fab.style.display=(u.rol==='alumne')?'none':'flex';
   if(u.mustChangePassword){ renderForceChangePassword(); return; }
   buildNav();
   var mobileOnly=(state.device==='mobile');
@@ -1356,5 +1362,6 @@ function drawRadar(canvas, values, color){
 function hexA(hex,a){hex=hex.replace('#','');var r=parseInt(hex.substr(0,2),16),g=parseInt(hex.substr(2,2),16),b=parseInt(hex.substr(4,2),16);return 'rgba('+r+','+g+','+b+','+a+')';}
 initTheme();
 </script>
+<button id="helpFab" onclick="window.open('https://claude.ai/code/artifact/2725f0fa-700f-43f9-9baa-dcb929d31167','_blank')" title="Guia d'ús per al professorat" aria-label="Ajuda">?</button>
 </body>
 </html>
