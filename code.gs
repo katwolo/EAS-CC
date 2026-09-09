@@ -927,6 +927,7 @@ function resetPassword_(p){
   if(pwCol<0) throw new Error('No s\'ha trobat la columna password.');
   var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
   var rrCol=colIndex_(data.headers,c.resetRequest);
+  var mailResult=null;
   data.rows.forEach(function(u){
     if(String(u[c.id])!==String(p.userId)) return;
     sh.getRange(u.__row,pwCol).setValue(String(p.password||''));
@@ -942,13 +943,19 @@ function resetPassword_(p){
         +'<p>Recorda que la contrasenya no hauria de ser una que utilizes en altres plataformes. No la comparteixes amb ningú.</p>'
         +'<p>Salutacions,</p>'
         +'</div>';
+      var mailError=null;
       try{
         MailApp.sendEmail({to:userEmail, subject:'Restablir contrasenya EAS_CC', htmlBody:htmlBody});
-      }catch(e){ Logger.log('Error enviant correu restabliment a '+userEmail+': '+String(e)); }
+      }catch(e){
+        mailError=String(e && e.message ? e.message : e);
+        Logger.log('Error enviant correu restabliment a '+userEmail+': '+mailError);
+      }
+      mailResult={mailSent:!mailError, mailError:mailError, mailTo:userEmail};
     }
   });
-  return true;
+  return mailResult||{mailSent:false, mailError:'Usuari no trobat o sense correu', mailTo:null};
 }
+
 function changePassword_(p){
   var c=CONFIG.cols.usuaris;
   var data=readMain_('usuaris'); var pwCol=colIndex_(data.headers,c.password);
@@ -1006,14 +1013,18 @@ function requestPasswordReset_(p){
     +'<tbody>'+tableRows+'</tbody></table>'
     +'<p>Gràcies per la feina que feu, sou els millors.</p>'
     +'<p>Salutacions,</p></div>';
+  var mailError=null;
   try{
     MailApp.sendEmail({
       to:'nmarieges@ieb.cat,ibustos@ieb.cat',
       subject:'Sol·licituds per restablir contrasenya EAS_CC',
       htmlBody:htmlBody
     });
-  }catch(mailErr){ Logger.log('Error enviant correu reset: '+String(mailErr)); }
-  return true;
+  }catch(mailErr){
+    mailError=String(mailErr && mailErr.message ? mailErr.message : mailErr);
+    Logger.log('Error enviant correu reset: '+mailError);
+  }
+  return { mailSent: !mailError, mailError: mailError };
 }
 
 /* ============== GESTIÓ DE DESDOBLAMENTS (ADMIN) ============== */

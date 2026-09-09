@@ -1111,7 +1111,12 @@ async function doRequestResetFromLogin(){
   if(!username.trim()) return showError('Introdueix el teu nom d\'usuari per sol·licitar el restabliment.');
   var r=await call('requestPasswordReset',{username:username.trim()});
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error enviant la sol·licitud.');
-  clearError(); setPing('Sol·licitud enviada. L\'administrador restablirà la teva contrasenya en breu.');
+  clearError();
+  if(r.done && r.done.mailSent===false){
+    setPing('Sol·licitud registrada. Avís: el correu als administradors no s\'ha pogut enviar ('+( r.done.mailError||'error desconegut')+').');
+  } else {
+    setPing('Sol·licitud enviada. L\'administrador restablirà la teva contrasenya en breu.');
+  }
 }
 
 /* ====================== ADMIN: GESTIÓ D'USUARIS ====================== */
@@ -1172,7 +1177,14 @@ async function doResetPwd(uid){
   if(!pwd) return showError('Introdueix una nova contrasenya.');
   var r=await call('resetPassword',{userId:uid,password:pwd});
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error restablint la contrasenya.');
-  closeModal(); toast('Contrasenya restablerta.');
+  closeModal();
+  if(r.done && r.done.mailSent===false){
+    toast('Contrasenya restablerta. ⚠️ El correu a l\'usuari no s\'ha pogut enviar: '+(r.done.mailError||'error desconegut'));
+  } else if(r.done && r.done.mailSent===true){
+    toast('Contrasenya restablerta i correu enviat a '+r.done.mailTo+'.');
+  } else {
+    toast('Contrasenya restablerta.');
+  }
 }
 function renderAdminAvisosTab(ad){
   var tots=(ad.admins||[]).concat(ad.professors||[]).concat(ad.alumnes||[]);
