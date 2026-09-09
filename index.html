@@ -1176,12 +1176,14 @@ function renderAdminAvisosTab(ad){
     return;
   }
   var rows=pending.map(function(u){
-    return '<tr><td>'+esc(u.cognom)+', '+esc(u.nom)+'</td><td class="mono">'+esc(u.username)+'</td>'+
+    return '<tr><td>'+esc(u.cognom)+', '+esc(u.nom)+'</td>'+
+      '<td class="mono" style="font-size:12px">'+esc(u.username)+'</td>'+
+      '<td class="muted" style="font-size:12px;white-space:nowrap">'+esc(u.resetRequest)+'</td>'+
       '<td style="text-align:right"><button class="btn sm" onclick=\'openResetPwd('+j({id:u.id,nom:u.nom,cognom:u.cognom,username:u.username})+')\'">Restablir</button></td></tr>';
   }).join('');
   $('adminBody').innerHTML=
     '<div class="panel" style="padding:6px 8px;overflow:auto">'+
-    '<table><thead><tr><th>Nom</th><th>Usuari</th><th></th></tr></thead>'+
+    '<table><thead><tr><th>Nom</th><th>Usuari</th><th>Sol·licitud</th><th></th></tr></thead>'+
     '<tbody>'+rows+'</tbody></table></div>';
 }
 async function renderAdminDesdoblTab(ad){

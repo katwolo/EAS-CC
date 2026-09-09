@@ -911,7 +911,7 @@ function getAdminUsers_(){
     var moduls=parseModuls_(u[c.moduls]).map(function(code){ return modIdx[code]||{codi:code,nom:code}; });
     var obj={id:String(u[c.id]),nom:String(u[c.nom]),cognom:String(u[c.cognom]),
       username:String(u[c.username]),rol:String(u[c.rol]),classe:String(u[c.classe]||''),
-      moduls:moduls, resetRequest:!!(u[c.resetRequest])};
+      moduls:moduls, resetRequest:String(u[c.resetRequest]||'')};
     var r=String(u[c.rol]);
     if(r==='admin') admins.push(obj);
     else if(r==='professor') professors.push(obj);
@@ -952,12 +952,52 @@ function requestPasswordReset_(p){
   var data=readMain_('usuaris'); var col=colIndex_(data.headers,c.resetRequest);
   if(col<0) throw new Error('No s\'ha trobat la columna reset request al full Usuaris.');
   var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name); var found=false;
+  // Timestamp de la sol·licitud (DD/MM/YYYY HH:MM)
+  var now=new Date();
+  var dd=now.getDate(),mm=now.getMonth()+1,yy=now.getFullYear(),hh=now.getHours(),mi=now.getMinutes();
+  var nowStr=(dd<10?'0':'')+dd+'/'+(mm<10?'0':'')+mm+'/'+yy+' '+(hh<10?'0':'')+hh+':'+(mi<10?'0':'')+mi;
+  var userObj=null;
   data.rows.forEach(function(u){
     if(String(u[c.username]).trim()===String(p.username||'').trim()){
-      sh.getRange(u.__row,col).setValue(true); found=true;
+      sh.getRange(u.__row,col).setValue(nowStr); found=true; userObj=u;
     }
   });
   if(!found) throw new Error('No s\'ha trobat cap usuari amb aquest nom d\'usuari.');
+  // Llistat de pendents: ja existents (data pre-escriptura) + usuari actual (tot just escrit)
+  var pending=data.rows.filter(function(u){ return String(u[c.resetRequest]||'').trim()!==''; });
+  if(userObj && !pending.some(function(u){ return u===userObj; })){
+    var entry={}; Object.keys(userObj).forEach(function(k){entry[k]=userObj[k];}); entry[c.resetRequest]=nowStr;
+    pending.push(entry);
+  }
+  // Construeix i envia el correu HTML
+  var tableRows=pending.map(function(u){
+    return '<tr>'
+      +'<td style="padding:6px 12px;border:1px solid #ddd">'+String(u[c.nom]||'')+'</td>'
+      +'<td style="padding:6px 12px;border:1px solid #ddd">'+String(u[c.cognom]||'')+'</td>'
+      +'<td style="padding:6px 12px;border:1px solid #ddd">'+String(u[c.correu]||'')+'</td>'
+      +'<td style="padding:6px 12px;border:1px solid #ddd">'+String(u[c.resetRequest]||'')+'</td>'
+      +'</tr>';
+  }).join('');
+  var htmlBody='<div style="font-family:sans-serif;font-size:14px;color:#222;line-height:1.6">'
+    +'<p>Estimats Nau i Iván,</p>'
+    +'<p>Hi ha hagut noves sol·licituds per restablir la contrasenya. Us passo un llistat actualitzat d\'aquestes persones perquè pugueu gestionar-ho amb el perfil d\'admin.</p>'
+    +'<table style="border-collapse:collapse;margin:12px 0">'
+    +'<thead><tr style="background:#f0f4f8;font-weight:600">'
+    +'<th style="padding:6px 12px;border:1px solid #ddd;text-align:left">Nom</th>'
+    +'<th style="padding:6px 12px;border:1px solid #ddd;text-align:left">Cognoms</th>'
+    +'<th style="padding:6px 12px;border:1px solid #ddd;text-align:left">Mail</th>'
+    +'<th style="padding:6px 12px;border:1px solid #ddd;text-align:left">Data de sol·licitud</th>'
+    +'</tr></thead>'
+    +'<tbody>'+tableRows+'</tbody></table>'
+    +'<p>Gràcies per la feina que feu, sou els millors.</p>'
+    +'<p>Salutacions,</p></div>';
+  try{
+    MailApp.sendEmail({
+      to:'nmarieges@ieb.cat,ibustos@ieb.cat',
+      subject:'Sol·licituds per restablir contrasenya EAS_CC',
+      htmlBody:htmlBody
+    });
+  }catch(mailErr){ Logger.log('Error enviant correu reset: '+String(mailErr)); }
   return true;
 }
 
