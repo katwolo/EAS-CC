@@ -1111,12 +1111,7 @@ async function doRequestResetFromLogin(){
   if(!username.trim()) return showError('Introdueix el teu nom d\'usuari per sol·licitar el restabliment.');
   var r=await call('requestPasswordReset',{username:username.trim()});
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error enviant la sol·licitud.');
-  clearError();
-  if(r.done && r.done.mailSent===false){
-    setPing('Sol·licitud registrada. Avís: el correu als administradors no s\'ha pogut enviar ('+( r.done.mailError||'error desconegut')+').');
-  } else {
-    setPing('Sol·licitud enviada. L\'administrador restablirà la teva contrasenya en breu.');
-  }
+  clearError(); setPing('Sol·licitud registrada. L\'administrador restablirà la teva contrasenya en breu.');
 }
 
 /* ====================== ADMIN: GESTIÓ D'USUARIS ====================== */

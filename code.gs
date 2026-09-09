@@ -970,28 +970,57 @@ function changePassword_(p){
   return true;
 }
 function requestPasswordReset_(p){
+  // Escriu el timestamp a la columna M. El trigger checkPendingResets_
+  // s'encarrega d'enviar el correu als admins quan detecta canvis.
   var c=CONFIG.cols.usuaris;
   var data=readMain_('usuaris'); var col=colIndex_(data.headers,c.resetRequest);
   if(col<0) throw new Error('No s\'ha trobat la columna reset request al full Usuaris.');
   var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name); var found=false;
-  // Timestamp de la sol·licitud (DD/MM/YYYY HH:MM)
   var now=new Date();
   var dd=now.getDate(),mm=now.getMonth()+1,yy=now.getFullYear(),hh=now.getHours(),mi=now.getMinutes();
   var nowStr=(dd<10?'0':'')+dd+'/'+(mm<10?'0':'')+mm+'/'+yy+' '+(hh<10?'0':'')+hh+':'+(mi<10?'0':'')+mi;
-  var userObj=null;
   data.rows.forEach(function(u){
     if(String(u[c.username]).trim()===String(p.username||'').trim()){
-      sh.getRange(u.__row,col).setValue(nowStr); found=true; userObj=u;
+      sh.getRange(u.__row,col).setValue(nowStr); found=true;
     }
   });
   if(!found) throw new Error('No s\'ha trobat cap usuari amb aquest nom d\'usuari.');
-  // Llistat de pendents: ja existents (data pre-escriptura) + usuari actual (tot just escrit)
-  var pending=data.rows.filter(function(u){ return String(u[c.resetRequest]||'').trim()!==''; });
-  if(userObj && !pending.some(function(u){ return u===userObj; })){
-    var entry={}; Object.keys(userObj).forEach(function(k){entry[k]=userObj[k];}); entry[c.resetRequest]=nowStr;
-    pending.push(entry);
+  return true;
+}
+
+/* ============== TRIGGER: NOTIFICACIÓ SOL·LICITUDS PENDENTS ============== */
+
+/**
+ * Comprova si hi ha sol·licituds de restabliment pendents.
+ * Envia un correu als admins NOMÉS si el conjunt de pendents
+ * ha canviat des de l'últim enviament (evita correus repetitius).
+ *
+ * S'ha d'activar des del trigger temporal (installResetTrigger_).
+ */
+function checkPendingResets_(){
+  var c=CONFIG.cols.usuaris;
+  var data=readMain_('usuaris');
+  var pending=data.rows.filter(function(u){
+    return String(u[c.resetRequest]||'').trim()!=='';
+  });
+
+  var props=PropertiesService.getScriptProperties();
+
+  if(pending.length===0){
+    // No hi ha pendents: neteja l'estat guardat
+    props.deleteProperty('lastResetSnapshot');
+    return;
   }
-  // Construeix i envia el correu HTML
+
+  // Crea una "empremta" del conjunt actual: id+timestamp de cada pendent
+  var snapshot=pending.map(function(u){
+    return String(u[c.id])+'|'+String(u[c.resetRequest]);
+  }).sort().join(';');
+
+  var lastSnapshot=props.getProperty('lastResetSnapshot')||'';
+  if(snapshot===lastSnapshot) return; // Res de nou, no s'envia correu
+
+  // Hi ha canvis: construeix i envia el correu
   var tableRows=pending.map(function(u){
     return '<tr>'
       +'<td style="padding:6px 12px;border:1px solid #ddd">'+String(u[c.nom]||'')+'</td>'
@@ -1000,9 +1029,10 @@ function requestPasswordReset_(p){
       +'<td style="padding:6px 12px;border:1px solid #ddd">'+String(u[c.resetRequest]||'')+'</td>'
       +'</tr>';
   }).join('');
+
   var htmlBody='<div style="font-family:sans-serif;font-size:14px;color:#222;line-height:1.6">'
     +'<p>Estimats Nau i Iván,</p>'
-    +'<p>Hi ha hagut noves sol·licituds per restablir la contrasenya. Us passo un llistat actualitzat d\'aquestes persones perquè pugueu gestionar-ho amb el perfil d\'admin.</p>'
+    +'<p>Hi ha sol·licituds pendents de restabliment de contrasenya a l\'EAS_CC. Us passo el llistat actualitzat perquè pugueu gestionar-ho amb el perfil d\'admin.</p>'
     +'<table style="border-collapse:collapse;margin:12px 0">'
     +'<thead><tr style="background:#f0f4f8;font-weight:600">'
     +'<th style="padding:6px 12px;border:1px solid #ddd;text-align:left">Nom</th>'
@@ -1013,18 +1043,42 @@ function requestPasswordReset_(p){
     +'<tbody>'+tableRows+'</tbody></table>'
     +'<p>Gràcies per la feina que feu, sou els millors.</p>'
     +'<p>Salutacions,</p></div>';
-  var mailError=null;
-  try{
-    MailApp.sendEmail({
-      to:'nmarieges@ieb.cat,ibustos@ieb.cat',
-      subject:'Sol·licituds per restablir contrasenya EAS_CC',
-      htmlBody:htmlBody
-    });
-  }catch(mailErr){
-    mailError=String(mailErr && mailErr.message ? mailErr.message : mailErr);
-    Logger.log('Error enviant correu reset: '+mailError);
-  }
-  return { mailSent: !mailError, mailError: mailError };
+
+  MailApp.sendEmail({
+    to:'nmarieges@ieb.cat,ibustos@ieb.cat',
+    subject:'Sol·licituds pendents de restablir contrasenya EAS_CC',
+    htmlBody:htmlBody
+  });
+
+  // Guarda l'empremta per evitar repetir el correu si no canvia res
+  props.setProperty('lastResetSnapshot', snapshot);
+  Logger.log('Correu de pendents enviat. Sol·licituds: '+pending.length);
+}
+
+/**
+ * Executa aquesta funció UNA SOLA VEGADA des de l'editor de GAS
+ * per instal·lar el trigger horari. GAS demanarà autorització de Gmail.
+ *
+ * Per desinstal·lar: executa removeResetTrigger_()
+ */
+function installResetTrigger_(){
+  // Elimina triggers existents d'aquesta funció per evitar duplicats
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if(t.getHandlerFunction()==='checkPendingResets_') ScriptApp.deleteTrigger(t);
+  });
+  // Trigger cada hora
+  ScriptApp.newTrigger('checkPendingResets_')
+    .timeBased()
+    .everyHours(1)
+    .create();
+  Logger.log('Trigger instal·lat: checkPendingResets_ cada hora.');
+}
+
+function removeResetTrigger_(){
+  ScriptApp.getProjectTriggers().forEach(function(t){
+    if(t.getHandlerFunction()==='checkPendingResets_') ScriptApp.deleteTrigger(t);
+  });
+  Logger.log('Trigger eliminat.');
 }
 
 /* ============== GESTIÓ DE DESDOBLAMENTS (ADMIN) ============== */
