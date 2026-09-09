@@ -293,4 +293,4 @@ Si tens dubtes sobre **quines activitats enregistrar**, com classificar una acti
 
 ---
 
-*Darrera actualització del manual: setembre 2025*
+*Darrera actualització del manual: setembre 2026*
