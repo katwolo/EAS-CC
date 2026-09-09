@@ -931,6 +931,21 @@ function resetPassword_(p){
     if(String(u[c.id])!==String(p.userId)) return;
     sh.getRange(u.__row,pwCol).setValue(String(p.password||''));
     if(rrCol>=0) sh.getRange(u.__row,rrCol).setValue('');
+    // Envia correu a l'usuari notificant el restabliment
+    var userEmail=String(u[c.correu]||'').trim();
+    var userName=String(u[c.nom]||'').trim()+' '+String(u[c.cognom]||'').trim();
+    if(userEmail){
+      var htmlBody='<div style="font-family:sans-serif;font-size:14px;color:#222;line-height:1.6">'
+        +'<p>Estimat/da '+String(u[c.nom]||'').trim()+',</p>'
+        +'<p>Vas fer la petició de restablir la contrasenya del web EAS_CC.</p>'
+        +'<p>La teva contrasenya torna a ser la inicial: <strong>1234</strong>. No obstant això, et demanarà que en tornis a posar una de nova.</p>'
+        +'<p>Recorda que la contrasenya no hauria de ser una que utilizes en altres plataformes. No la comparteixes amb ningú.</p>'
+        +'<p>Salutacions,</p>'
+        +'</div>';
+      try{
+        MailApp.sendEmail({to:userEmail, subject:'Restablir contrasenya EAS_CC', htmlBody:htmlBody});
+      }catch(e){ Logger.log('Error enviant correu restabliment a '+userEmail+': '+String(e)); }
+    }
   });
   return true;
 }
