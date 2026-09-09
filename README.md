@@ -28,7 +28,7 @@ L'aplicació és accessible des de qualsevol navegador (Chrome, Firefox, Safari,
 
 **Adreça web:**
 ```
-https://katwolo.github.io/EAS-CC/
+https://www.iesportbcn.github.io/EAS_CC/
 ```
 
 ### Passos per entrar:
