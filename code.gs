@@ -1061,7 +1061,7 @@ function checkPendingResets_(){
  *
  * Per desinstal·lar: executa removeResetTrigger_()
  */
-function installResetTrigger_(){
+function installResetTrigger(){
   // Elimina triggers existents d'aquesta funció per evitar duplicats
   ScriptApp.getProjectTriggers().forEach(function(t){
     if(t.getHandlerFunction()==='checkPendingResets_') ScriptApp.deleteTrigger(t);
@@ -1074,7 +1074,7 @@ function installResetTrigger_(){
   Logger.log('Trigger instal·lat: checkPendingResets_ cada hora.');
 }
 
-function removeResetTrigger_(){
+function removeResetTrigger(){
   ScriptApp.getProjectTriggers().forEach(function(t){
     if(t.getHandlerFunction()==='checkPendingResets_') ScriptApp.deleteTrigger(t);
   });
