@@ -940,7 +940,7 @@ function resetPassword_(p){
         +'<p>Estimat/da '+String(u[c.nom]||'').trim()+',</p>'
         +'<p>Vas fer la petició de restablir la contrasenya del web EAS_CC.</p>'
         +'<p>La teva contrasenya torna a ser la inicial: <strong>1234</strong>. No obstant això, et demanarà que en tornis a posar una de nova.</p>'
-        +'<p>Recorda que la contrasenya no hauria de ser una que utilizes en altres plataformes. No la comparteixes amb ningú.</p>'
+        +'<p>Recorda que la contrasenya no hauria de ser una que utilitzis en altres plataformes. No la comparteixes amb ningú.</p>'
         +'<p>Salutacions,</p>'
         +'</div>';
       var mailError=null;
