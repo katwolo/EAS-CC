@@ -478,7 +478,7 @@ async function renderAlumneResum(){
         var t=(!isAlumne&&v!=null)?' title="'+v+'/10"':'';
         return col?'<td class="cc"><span class="cell" style="background:'+col+';box-shadow:0 0 0 2px var(--ring)"'+t+'></span></td>':'<td class="cc"><span class="cell empty"></span></td>';
       }).join('')
-      +'<td style="text-align:center;padding:0 10px;font-size:14px">'+notaHtml+'</td>'
+      +'<td style="text-align:center;padding:0 10px;font-size:14px">'+(isAlumne?'':notaHtml)+'</td>'
       +'</tr>';
   }
 
