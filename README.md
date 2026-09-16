@@ -14,15 +14,16 @@
 2. [Primer accés: canvi de contrasenya](#2-primer-accés-canvi-de-contrasenya)
 3. [La pantalla principal](#3-la-pantalla-principal)
 4. [Enregistrar una activitat](#4-enregistrar-una-activitat) ⭐
-5. [Editar una activitat ja enregistrada](#5-editar-una-activitat-ja-enregistrada)
-6. [Esborrar una activitat](#6-esborrar-una-activitat)
-7. [Veure l'Historial d'activitats](#7-veure-lhistorial-dactivitats)
-8. [Veure el Resum MP](#8-veure-el-resum-mp)
-9. [Veure l'Alumnat](#9-veure-lalumnat)
-10. [Canviar la contrasenya](#10-canviar-la-contrasenya)
-11. [He oblidat la contrasenya](#11-he-oblidat-la-contrasenya)
-12. [Contacte i suport](#12-contacte-i-suport)
-13. [Preguntes freqüents](#13-preguntes-freqüents)
+5. [Crear una activitat nova](#5-crear-una-activitat-nova)
+6. [Editar una activitat ja enregistrada](#6-editar-una-activitat-ja-enregistrada)
+7. [Esborrar una activitat](#7-esborrar-una-activitat)
+8. [Veure l'Historial d'activitats](#8-veure-lhistorial-dactivitats)
+9. [Veure el Resum MP](#9-veure-el-resum-mp)
+10. [Veure l'Alumnat](#10-veure-lalumnat)
+11. [Canviar la contrasenya](#11-canviar-la-contrasenya)
+12. [He oblidat la contrasenya](#12-he-oblidat-la-contrasenya)
+13. [Contacte i suport](#13-contacte-i-suport)
+14. [Preguntes freqüents](#14-preguntes-freqüents)
 
 ---
 
@@ -107,6 +108,8 @@ A la pantalla que apareix, veuràs un selector per triar el **mòdul** que vols 
 
 Apareixerà un llistat de les activitats disponibles per a aquell mòdul (definides a la programació). Fes clic a l'activitat que has realitzat.
 
+> 💡 Si l'activitat que has realitzat **no apareix a la llista**, pots crear-la des d'aquí mateix fent clic a **+ Nova activitat** (vegeu la secció 5).
+
 ---
 
 **Pas 4 — Selecciona els alumnes**
@@ -137,7 +140,36 @@ Un cop has emplenat totes les qualificacions, fes clic al botó **Desar** (o **E
 
 ---
 
-## 5. Editar una activitat ja enregistrada
+## 5. Crear una activitat nova
+
+Si l'activitat que necessites no existeix al llistat, pots crear-la en el moment. Tant des del pas de selecció d'activitat (**Enregistrar → Pas 3**) com des de la secció **Activitats** del menú, trobaràs el botó **+ Nova activitat**.
+
+### Pas 1 — Comprova els criteris
+
+Quan fas clic a **+ Nova activitat**, apareixerà un missatge de verificació prèvia amb la llista de criteris que ha de complir l'activitat:
+
+- Està temporitzada a la programació des de l'inici del projecte/curs.
+- Està contextualitzada al projecte/contingut.
+- Té més d'un indicador/capacitat clau associada.
+- Permet descriure accions associades als indicadors avaluats.
+- Ofereix a l'alumnat la possibilitat de mostrar les capacitats clau que se li avaluen de forma senzilla.
+
+Marca els ítems que corresponguin i fes clic a **Acceptar** per continuar.
+
+### Pas 2 — Omple el formulari de nova activitat
+
+1. **Nom de l'activitat:** Escriu un nom clar i descriptiu (p. ex. *Sortida a la residència*).
+2. **Selecciona els indicadors:** Desplega les Capacitats Clau i marca els indicadors que avalua aquesta activitat.
+3. **Hashtag per indicador:** Quan marquis un indicador, apareixerà automàticament un camp de text sota seu on pots escriure el **hashtag** o paraula clau associada a aquell indicador concret (p. ex. `#observació`). Si no vols afegir hashtag a un indicador, deixa'l en blanc. Si no marques cap indicador, no apareixerà cap camp.
+4. Fes clic a **Desar activitat**.
+
+> ✅ L'activitat quedarà desada dins del teu mòdul i apareixerà al llistat per a usos futurs.
+
+> ⚠️ Cal seleccionar almenys un indicador per poder desar l'activitat.
+
+---
+
+## 6. Editar una activitat ja enregistrada
 
 Si has comès un error en una qualificació o vols modificar qualsevol dada d'una activitat que ja has registrat, pots fer-ho des de l'Historial.
 
@@ -155,7 +187,7 @@ Si has comès un error en una qualificació o vols modificar qualsevol dada d'un
 
 ---
 
-## 6. Esborrar una activitat
+## 7. Esborrar una activitat
 
 Si necessites eliminar completament un registre d'activitat (per exemple, si l'has enregistrat per error), pots fer-ho des de l'Historial.
 
@@ -171,7 +203,7 @@ Si necessites eliminar completament un registre d'activitat (per exemple, si l'h
 
 ---
 
-## 7. Veure l'Historial d'activitats
+## 8. Veure l'Historial d'activitats
 
 L'Historial et mostra totes les activitats d'avaluació que has registrat fins ara.
 
@@ -187,7 +219,7 @@ L'Historial et mostra totes les activitats d'avaluació que has registrat fins a
 
 ---
 
-## 8. Veure el Resum MP
+## 9. Veure el Resum MP
 
 El Resum MP mostra les notes acumulades de cada alumne/a en les Capacitats Clau al llarg del mòdul, calculades a partir de totes les activitats enregistrades.
 
@@ -205,7 +237,7 @@ El Resum MP mostra les notes acumulades de cada alumne/a en les Capacitats Clau 
 
 ---
 
-## 9. Veure l'Alumnat
+## 10. Veure l'Alumnat
 
 La secció Alumnat mostra el llistat d'alumnes de la teva classe.
 
@@ -215,9 +247,11 @@ La secció Alumnat mostra el llistat d'alumnes de la teva classe.
 2. Veuràs el llistat d'alumnes amb el seu nom, cognom i classe.
 3. Fes clic sobre el nom d'un/a alumne/a per veure el seu **resum individual** de totes les activitats i notes per CC.
 
+> 💡 **Privacitat de les notes:** El resum individual de l'alumne/a, quan l'alumne/a l'accedeix des del seu compte, mostra les valoracions per colors (verd, ambre, vermell) però **no mostra les notes numèriques**. Només el professorat pot veure els valors numèrics.
+
 ---
 
-## 10. Canviar la contrasenya
+## 11. Canviar la contrasenya
 
 Pots canviar la contrasenya en qualsevol moment des del teu perfil.
 
@@ -235,7 +269,7 @@ Pots canviar la contrasenya en qualsevol moment des del teu perfil.
 
 ---
 
-## 11. He oblidat la contrasenya
+## 12. He oblidat la contrasenya
 
 Si no recordes la contrasenya, pots sol·licitar que te la restableixi l'administrador.
 
@@ -250,7 +284,7 @@ Si no recordes la contrasenya, pots sol·licitar que te la restableixi l'adminis
 
 ---
 
-## 12. Contacte i suport
+## 13. Contacte i suport
 
 ### 🔧 Problemes tècnics
 
@@ -272,7 +306,7 @@ Si tens dubtes sobre **quines activitats enregistrar**, com classificar una acti
 
 ---
 
-## 13. Preguntes freqüents
+## 14. Preguntes freqüents
 
 **No puc entrar a l'aplicació. Què faig?**
 > Comprova que el nom d'usuari i la contrasenya siguin correctes (les lletres majúscules i minúscules importem). Si has oblidat la contrasenya, segueix els passos de la secció 11. Si continua sense funcionar, contacta amb l'Iván Bustos.
@@ -294,6 +328,15 @@ Si tens dubtes sobre **quines activitats enregistrar**, com classificar una acti
 
 **Les notes del Resum MP no coincideixen amb les que espero.**
 > El resum es calcula automàticament a partir de totes les activitats enregistrades. Si creus que hi ha un error, comprova l'Historial per verificar que totes les activitats estan registrades correctament. Si tens dubtes sobre com es calcula la nota, consulta la Nau Marieges.
+
+**He creat una activitat nova però no apareix al llistat quan enregistro.**
+> Comprova que has seleccionat el mòdul correcte al desplegable del pas 2. Les activitats creades per a un mòdul concret només apareixen quan es tria aquell mòdul.
+
+**Quan creo una activitat nova, per a què serveix el camp de hashtag que apareix sota cada indicador?**
+> El hashtag és una paraula clau opcional que identifica l'indicador dins d'aquesta activitat (p. ex. `#observació`, `#treball-grupal`). Ajuda a contextualitzar ràpidament cada indicador durant l'avaluació. Pots deixar-lo en blanc si no el necessites; la casella apareix únicament quan has marcat l'indicador.
+
+**Per què no veig les notes numèriques quan entro com a alumne/a?**
+> Per decisió pedagògica, l'alumnat veu les seves valoracions en forma de colors (verd, ambre, vermell) però no els valors numèrics. El professorat sí que té accés als números des del seu compte.
 
 ---
 
