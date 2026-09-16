@@ -215,14 +215,21 @@ function getActivityTypes_(p){
 
 /* ============== ACTIVITATS -> INDICADORS (catàleg) ============== */
 function readActivityBlocks_(){
-  var c=CONFIG.cols.actInd, blocks={}, paraules={}, current=null;
+  var c=CONFIG.cols.actInd, blocks={}, indParaules={}, current=null;
   readMain_('actInd').rows.forEach(function(r){
-    var act=String(r[c.activitat]).trim(); if(act){current=act; if(!blocks[current])blocks[current]=[];}
+    var act=String(r[c.activitat]).trim();
+    if(act){ current=act; if(!blocks[current])blocks[current]=[]; if(!indParaules[current])indParaules[current]={}; }
     if(!current)return;
-    var codi=normVal_(r[c.codi]); if(codi) blocks[current].push(codi);
-    if(!paraules[current]){ var p=normVal_(r[c.paraules]); if(p) paraules[current]=p; }
+    var codi=normVal_(r[c.codi]);
+    if(codi){ blocks[current].push(codi); var p=normVal_(r[c.paraules]); if(p) indParaules[current][codi]=p; }
   });
-  return { blocks:blocks, paraules:paraules };
+  // paraules per activitat = concatenació de les paraules dels indicadors (compat. anterior)
+  var paraules={};
+  Object.keys(indParaules).forEach(function(a){
+    var kws=Object.keys(indParaules[a]).map(function(k){return indParaules[a][k];}).filter(Boolean);
+    if(kws.length) paraules[a]=kws.join(' ');
+  });
+  return { blocks:blocks, paraules:paraules, indParaules:indParaules };
 }
 function indicatorCatalog_(){
   var c=CONFIG.cols.indicadors,map={};
@@ -233,22 +240,31 @@ function indicatorCatalog_(){
 }
 /* activitats pròpies del mòdul (pestanya "Activitats Mòdul" dins el Sheet del mòdul) */
 function readModuleActivities_(ss){
-  var sh=ss.getSheetByName(CONFIG.modAct); if(!sh) return {map:{}, paraules:{}};
-  var v=sh.getDataRange().getValues(); var map={}, paraules={};
+  var sh=ss.getSheetByName(CONFIG.modAct); if(!sh) return {map:{}, paraules:{}, indParaules:{}};
+  var v=sh.getDataRange().getValues(); var map={}, indParaules={};
   for(var i=1;i<v.length;i++){
     var a=String(v[i][0]||'').trim(); var code=normVal_(v[i][1]); if(!a)continue;
     if(!map[a])map[a]=[]; if(code && map[a].indexOf(code)<0) map[a].push(code);
-    if(!paraules[a]){ var p=normVal_(String(v[i][2]||'').trim()); if(p) paraules[a]=p; }
+    if(code){ if(!indParaules[a])indParaules[a]={}; var p=normVal_(String(v[i][2]||'').trim()); if(p) indParaules[a][code]=p; }
   }
-  return {map:map, paraules:paraules};
+  var paraules={};
+  Object.keys(indParaules).forEach(function(a){
+    var kws=Object.keys(indParaules[a]).map(function(k){return indParaules[a][k];}).filter(Boolean);
+    if(kws.length) paraules[a]=kws.join(' ');
+  });
+  return {map:map, paraules:paraules, indParaules:indParaules};
 }
 function getActivityIndicators_(p){
-  var act=String(p.activitat||'').trim(); var codes=null; var paraules='';
+  var act=String(p.activitat||'').trim(); var codes=null; var indParaules={};
   if(p.moduleCodi){ try{ var ss=openModule_(p.moduleCodi); var res=readModuleActivities_(ss); var mod=res.map;
-    if(mod[act]){ codes=mod[act]; paraules=res.paraules[act]||''; } }catch(e){} }
-  if(!codes){ var ab=readActivityBlocks_(); codes=(ab.blocks[act])||[]; paraules=paraules||(ab.paraules[act]||''); }
+    if(mod[act]){ codes=mod[act]; indParaules=res.indParaules[act]||{}; } }catch(e){} }
+  if(!codes){ var ab=readActivityBlocks_(); codes=(ab.blocks[act])||[]; if(!Object.keys(indParaules).length) indParaules=ab.indParaules[act]||{}; }
   var cat=indicatorCatalog_();
-  return { indicators:codes.map(function(codi){ return cat[codi]||{codi:codi,capacitat:'?',requisit:'',text:'(no trobat)',colorInd:'#cccccc',colorCap:'#999999',capacitatId:capOf_(codi)}; }), paraules:paraules };
+  var globalParaules=Object.keys(indParaules).map(function(k){return indParaules[k];}).filter(Boolean).join(' ');
+  return { indicators:codes.map(function(codi){
+    var base=cat[codi]||{codi:codi,capacitat:'?',requisit:'',text:'(no trobat)',colorInd:'#cccccc',colorCap:'#999999',capacitatId:capOf_(codi)};
+    return {codi:base.codi,capacitat:base.capacitat,requisit:base.requisit,text:base.text,colorInd:base.colorInd,colorCap:base.colorCap,capacitatId:base.capacitatId,paraules:indParaules[codi]||''};
+  }), paraules:globalParaules };
 }
 /* 7 capacitats amb els seus indicadors (per a la pantalla "Nova activitat") */
 function getCapabilities_(){
@@ -266,11 +282,11 @@ function saveActivity_(p){
   var nom=String(p.nom||'').trim(); if(!nom) throw new Error('Cal un nom d\'activitat.');
   var codes=(p.indicators||[]).map(normVal_).filter(Boolean);
   if(!codes.length) throw new Error('Tria almenys un indicador.');
-  var kw=String(p.paraules||'').trim();
+  var indKw=p.indParaules||{};
   // si ja existeix amb aquest nom, reescriu
   var v=sh.getDataRange().getValues();
   for(var i=v.length-1;i>=1;i--){ if(String(v[i][0]||'').trim()===nom) sh.deleteRow(i+1); }
-  var rows=codes.map(function(code){ return [nom, code, kw]; });
+  var rows=codes.map(function(code){ return [nom, code, String(indKw[code]||'').trim()]; });
   sh.getRange(sh.getLastRow()+1,1,rows.length,3).setValues(rows);
   return { nom:nom, n:codes.length };
 }
@@ -869,7 +885,7 @@ function listModuleActivities_(p){
   var res=readModuleActivities_(ss); var map=res.map;
   var cat=indicatorCatalog_();
   return Object.keys(map).map(function(nom){
-    return { nom:nom, paraules:res.paraules[nom]||'', indicators:map[nom].map(function(codi){
+    return { nom:nom, paraules:res.paraules[nom]||'', indParaules:res.indParaules[nom]||{}, indicators:map[nom].map(function(codi){
       return cat[codi]||{codi:codi,text:'(no trobat)',colorInd:'#cccccc',capacitat:'?',capacitatId:capOf_(codi)};
     })};
   }).sort(function(a,b){ return a.nom.localeCompare(b.nom); });
@@ -1123,7 +1139,7 @@ function saveDesdoblaments_(p){
 function listCatalogActivities_(){
   var cat=indicatorCatalog_(); var res=readActivityBlocks_();
   return Object.keys(res.blocks).map(function(nom){
-    return { nom:nom, paraules:res.paraules[nom]||'', indicators:res.blocks[nom].map(function(codi){
+    return { nom:nom, paraules:res.paraules[nom]||'', indParaules:res.indParaules[nom]||{}, indicators:res.blocks[nom].map(function(codi){
       return cat[codi]||{codi:codi,text:'(no trobat)',colorInd:'#cccccc',capacitat:'?',capacitatId:capOf_(codi)};
     })};
   }).sort(function(a,b){ return a.nom.localeCompare(b.nom); });
@@ -1139,10 +1155,10 @@ function saveCatalogActivity_(p){
   if(p.oldNom && String(p.oldNom).trim()!==nom) _deleteCatalogRows_(sh, String(p.oldNom).trim(), c.activitat);
   // esborra i reescriu nom actual
   _deleteCatalogRows_(sh, nom, c.activitat);
-  var kw=String(p.paraules||'').trim();
+  var indKw=p.indParaules||{};
   var rows=codes.map(function(codi){
     var ind=cat[codi]||{}; var capId=ind.capacitatId||capOf_(codi);
-    return [nom, ind.capacitat||CAP_NOMS[capId]||capId, ind.text||'', codi, ind.colorInd||'', kw];
+    return [nom, ind.capacitat||CAP_NOMS[capId]||capId, ind.text||'', codi, ind.colorInd||'', String(indKw[codi]||'').trim()];
   });
   sh.getRange(sh.getLastRow()+1,1,rows.length,6).setValues(rows);
   return { nom:nom, n:codes.length };

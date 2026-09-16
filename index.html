@@ -134,6 +134,8 @@
   .indpick .code{font-family:var(--mono);font-weight:600;font-size:12px;color:var(--accent-2);flex:none}
   .indtab .code{font-family:var(--mono);font-weight:600}.indtab .prog{font-family:var(--mono);font-size:11px;color:var(--muted)}
   .ind-desc{background:var(--surface-2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:8px;padding:11px 14px;font-size:13.5px;margin-bottom:14px}
+  .ind-kw{font-size:12.5px;padding:5px 9px;margin:2px 0 5px 28px;width:calc(100% - 36px);border-radius:6px;background:var(--surface-3);border:1px solid var(--border);color:var(--text);display:block}
+  .ind-kw:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 2px var(--accent-soft)}
   .ind-desc .cap{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:3px}
   .kws{font-size:14px;color:var(--text-2);letter-spacing:.02em;margin-bottom:4px}
   .btn-link{background:none;border:none;color:var(--accent);cursor:pointer;font-size:12.5px;padding:4px 0;display:inline-block}
@@ -249,6 +251,24 @@ function setPing(t){$('pingStatus').textContent=t;}
 function toast(t){var e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(function(){e.classList.remove('show');},2600);}
 function openModal(h){$('modal').innerHTML=h;$('overlay').classList.add('show');}
 function closeModal(){$('overlay').classList.remove('show');$('modal').innerHTML='';}
+function showNovaActPopup(cb){
+  window._novaActCb=cb;
+  var items=['Està temporitzada a la programació des de l\'inici del projecte/curs.',
+    'Està contextualitzada al projecte/contingut.',
+    'Té més d\'un indicador/capacitat clau associada.',
+    'Permet descriure accions associades als indicadors avaluats.',
+    'Ofereix a l\'alumnat la possibilitat de mostrar les capacitats clau que se li avaluen de forma senzilla.'];
+  openModal(
+    '<h3 style="margin:0 0 16px;font-size:15px;font-weight:700">L\'activitat que vull introduir a l\'aplicatiu…</h3>'+
+    '<ul style="list-style:none;padding:0;margin:0 0 20px;display:flex;flex-direction:column;gap:10px">'+
+    items.map(function(t){
+      return '<li style="display:flex;align-items:flex-start;gap:10px;font-size:13.5px">'+
+        '<input type="checkbox" style="margin-top:2px;flex:none;width:15px;height:15px;cursor:pointer"> <span>'+esc(t)+'</span></li>';
+    }).join('')+
+    '</ul>'+
+    '<div class="actions"><button class="btn" onclick="closeModal();window._novaActCb&&window._novaActCb()">Acceptar</button></div>'
+  );
+}
 function scoreColor(n){ if(n==null) return null; n=Math.round(n); if(n<=2)return '#E25563'; if(n<=5)return '#E0A23C'; if(n<=8)return '#4F8EF7'; return '#3FB27F'; }
 
 /* device + login */
@@ -691,7 +711,7 @@ async function renderActivitats(){
     '<option value="">— tria —</option>'+
     modules.map(function(m){return '<option value="'+esc(m.codi)+'" '+(m.codi===state.activModul?'selected':'')+'>'+esc(m.nom)+'</option>';}).join('')+
     '</select><div class="spacer"></div>'+
-    '<button class="btn sm" onclick="openEditActivity(null)">+ Nova activitat</button>'+
+    '<button class="btn sm" onclick="showNovaActPopup(function(){openEditActivity(null)})">+ Nova activitat</button>'+
     '</div></div>';
   if(!state.activModul){$('actBody').innerHTML='<div class="empty">Tria un mòdul.</div>';return;}
   $('actBody').innerHTML='<div class="empty">Carregant…</div>';
@@ -714,7 +734,7 @@ async function renderActivitats(){
 async function openEditActivity(a){
   $('content').innerHTML='<div class="empty">Carregant indicadors…</div>';
   var rp=await call('getCapabilities',{}); if(!rp.ok) return showError(rp.error);
-  actEdit={ nom:a?a.nom:'', _oldNom:a?a.nom:null, caps:rp.caps, open:null, selected:{}, paraules:a?(a.paraules||''):'' };
+  actEdit={ nom:a?a.nom:'', _oldNom:a?a.nom:null, caps:rp.caps, open:null, selected:{}, indParaules:a?(a.indParaules||{}):{}  };
   if(a){ a.indicators.forEach(function(ind){ actEdit.selected[ind.codi]=true; }); }
   paintActivitatForm();
 }
@@ -730,9 +750,10 @@ function paintActivitatForm(){
       '<span class="arrow">'+(open?'▾':'▸')+'</span><span class="cn">'+esc(c.capacitat)+'</span>'+
       (chosen?'<span class="badge">'+chosen+'</span>':'')+'</button>';
     var body=open?('<div class="capBody">'+c.indicators.map(function(ind){var on=actEdit.selected[ind.codi];
-      return '<label class="indpick"><input type="checkbox" '+(on?'checked':'')+' onclick="toggleActInd(\''+esc(ind.codi)+'\')"> '+
+      var kwInput=on?('<input class="ind-kw field" type="text" placeholder="#hashtag (opcional)" value="'+esc(actEdit.indParaules[ind.codi]||'')+'" data-code="'+esc(ind.codi)+'" oninput="actEdit.indParaules[this.dataset.code]=this.value" onclick="event.stopPropagation()">'):''
+      return '<div><label class="indpick"><input type="checkbox" '+(on?'checked':'')+' onclick="toggleActInd(\''+esc(ind.codi)+'\')"> '+
         '<span class="swatch" style="background:'+esc(ind.colorInd||c.color)+'"></span>'+
-        '<span class="code">'+esc(ind.codi)+'</span> <span>'+esc(ind.text)+'</span></label>';
+        '<span class="code">'+esc(ind.codi)+'</span> <span>'+esc(ind.text)+'</span></label>'+kwInput+'</div>';
     }).join('')+'</div>'):'';
     return '<div class="capwrap">'+head+body+'</div>';
   }).join('');
@@ -742,9 +763,7 @@ function paintActivitatForm(){
     '<div class="panel">'+
       '<label>Nom de l\'activitat</label>'+
       '<input id="act_name" class="field" style="width:100%;max-width:420px" value="'+esc(actEdit.nom)+'" oninput="actEdit.nom=this.value" placeholder="p. ex. Sortida a la residència">'+
-      '<label style="margin-top:14px">Paraules clau <span class="muted" style="font-size:12px">(opcional · p. ex. #observació #grupal)</span></label>'+
-      '<input id="act_kw" class="field" style="width:100%;max-width:420px" value="'+esc(actEdit.paraules)+'" oninput="actEdit.paraules=this.value" placeholder="#hashtag1 #hashtag2">'+
-      '<label style="margin-top:16px">Capacitats clau i indicadors</label>'+
+      '<label style="margin-top:16px">Capacitats clau i indicadors <span class="muted" style="font-size:12px;font-weight:400">(selecciona\'n un per afegir-hi el hashtag)</span></label>'+
       '<div class="capacc">'+capHtml+'</div>'+
       '<div class="row" style="margin-top:18px">'+
         '<span class="counter">'+sel.length+' indicador'+(sel.length===1?'':'s')+' triat'+(sel.length===1?'':'s')+'</span>'+
@@ -762,7 +781,7 @@ async function doSaveActivity(){
     var rd=await call('deleteActivity',{moduleCodi:state.activModul,nom:actEdit._oldNom});
     if(!rd.ok) return showError(rd.error);
   }
-  var r=await call('saveActivity',{moduleCodi:state.activModul,nom:nom,indicators:codes,paraules:actEdit.paraules||''});
+  var r=await call('saveActivity',{moduleCodi:state.activModul,nom:nom,indicators:codes,indParaules:actEdit.indParaules||{}});
   if(!r.ok) return showError(r.error);
   toast(actEdit._oldNom?'Activitat actualitzada.':'Activitat creada.');
   renderActivitats();
@@ -922,16 +941,16 @@ async function stepActivitat(){
     '<div class="row"><select id="actSel" class="field" style="flex:1;min-width:200px" onchange="var kw=(window._actKwMap||{})[this.value]||\'\';var el=document.getElementById(\'act-kw-hint\');if(el)el.textContent=kw;"><option value="">— tria una activitat —</option>'+optionList+'</select>'+
     '<button class="btn sm" style="white-space:nowrap" onclick="confirmActivitat()">Continuar →</button></div>'+
     '<div id="act-kw-hint" class="muted" style="font-size:13px;margin-top:5px;min-height:18px"></div>'+
-    '<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px"><button class="btn sm ghost" onclick="newActivity()">+ Nova activitat</button>'+
+    '<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px"><button class="btn sm ghost" onclick="showNovaActPopup(newActivity)">+ Nova activitat</button>'+
     '<span class="muted" style="font-size:12.5px;margin-left:10px">Crea una activitat nova amb les seves capacitats i indicadors.</span></div></div>';
 }
 function confirmActivitat(){ var a=$('actSel')?$('actSel').value:''; if(!a) return showError('Tria una activitat del desplegable.'); pickActivitat(a); }
-var newAct={ name:'', caps:[], open:null, selected:{}, paraules:'' };
-var actEdit={ nom:'', _oldNom:null, caps:[], open:null, selected:{}, paraules:'' };
+var newAct={ name:'', caps:[], open:null, selected:{}, indParaules:{} };
+var actEdit={ nom:'', _oldNom:null, caps:[], open:null, selected:{}, indParaules:{} };
 async function newActivity(){
   loadingStep('Carregant capacitats i indicadors…');
   var r=await call('getCapabilities',{}); if(!r.ok) return showError(r.error);
-  newAct={ name:'', caps:r.caps, open:null, selected:{}, paraules:'' };
+  newAct={ name:'', caps:r.caps, open:null, selected:{}, indParaules:{} };
   paintNewActivity();
 }
 function toggleCap(ci){ newAct.open=(newAct.open===ci?null:ci); paintNewActivity(); }
@@ -945,9 +964,10 @@ function paintNewActivity(){
       '<span class="arrow">'+(open?'▾':'▸')+'</span><span class="cn">'+esc(c.capacitat)+'</span>'+
       (chosen?'<span class="badge">'+chosen+'</span>':'')+'</button>';
     var body=open?('<div class="capBody">'+c.indicators.map(function(ind){var on=newAct.selected[ind.codi];
-      return '<label class="indpick"><input type="checkbox" '+(on?'checked':'')+' onclick="toggleInd(\''+esc(ind.codi)+'\')"> '+
+      var kwInput=on?('<input class="ind-kw field" type="text" placeholder="#hashtag (opcional)" value="'+esc((newAct.indParaules||{})[ind.codi]||'')+'" data-code="'+esc(ind.codi)+'" oninput="newAct.indParaules[this.dataset.code]=this.value" onclick="event.stopPropagation()">'):''
+      return '<div><label class="indpick"><input type="checkbox" '+(on?'checked':'')+' onclick="toggleInd(\''+esc(ind.codi)+'\')"> '+
         '<span class="swatch" style="background:'+esc(ind.colorInd||c.color)+'"></span>'+
-        '<span class="code">'+esc(ind.codi)+'</span> <span>'+esc(ind.text)+'</span></label>';}).join('')+'</div>'):'';
+        '<span class="code">'+esc(ind.codi)+'</span> <span>'+esc(ind.text)+'</span></label>'+kwInput+'</div>';}).join('')+'</div>'):'';
     return '<div class="capwrap">'+head+body+'</div>';
   }).join('');
   $('step').innerHTML=
@@ -956,9 +976,7 @@ function paintNewActivity(){
       '<div class="row"><div style="flex:1;min-width:200px"><label style="margin-top:0">Nom de l\'activitat</label>'+
         '<input id="na_name" class="field" style="width:100%" value="'+esc(newAct.name)+'" oninput="newAct.name=this.value" placeholder="p. ex. Sortida a la residència"></div>'+
         '<div><label style="margin-top:0">Data</label><input class="field" type="date" value="'+esc(state.data)+'" onchange="state.data=this.value"></div></div>'+
-      '<label style="margin-top:14px">Paraules clau <span class="muted" style="font-size:12px">(opcional · p. ex. #observació #grupal)</span></label>'+
-      '<input id="na_kw" class="field" style="width:100%;max-width:420px" value="'+esc(newAct.paraules)+'" oninput="newAct.paraules=this.value" placeholder="#hashtag1 #hashtag2">'+
-      '<label style="margin-top:16px">Capacitats clau i indicadors a avaluar</label>'+
+      '<label style="margin-top:16px">Capacitats clau i indicadors a avaluar <span class="muted" style="font-size:12px;font-weight:400">(selecciona\'n un per afegir-hi el hashtag)</span></label>'+
       '<div class="capacc">'+capHtml+'</div>'+
       '<div class="row" style="margin-top:18px;align-items:center"><span class="counter">'+sel.length+' indicador'+(sel.length===1?'':'s')+' triat'+(sel.length===1?'':'s')+'</span>'+
         '<div class="spacer"></div>'+
@@ -970,7 +988,7 @@ async function createActivity(){
   var nom=(newAct.name||'').trim(); if(!nom) return showError('Posa un nom a l\'activitat.');
   var codes=Object.keys(newAct.selected).filter(function(k){return newAct.selected[k];});
   if(!codes.length) return showError('Tria almenys un indicador.');
-  var r=await call('saveActivity',{moduleCodi:state.module.codi,nom:nom,indicators:codes,paraules:newAct.paraules||''});
+  var r=await call('saveActivity',{moduleCodi:state.module.codi,nom:nom,indicators:codes,indParaules:newAct.indParaules||{}});
   if(!r.ok) return showError(r.error);
   toast('Activitat «'+nom+'» creada al mòdul.');
   pickActivitat(nom);
@@ -1010,7 +1028,7 @@ function paintAvaluacio(){
   var saveBtn = stt.complete
     ? '<button class="btn sm" onclick="saveRegistre()">Desar registre</button>'
     : '<button class="btn sm" disabled title="Falten valoracions">Falten '+(stt.need-stt.done)+' valoracions</button>';
-  var indDesc=(function(){var ex=state._indDescExpanded; var pw=state.activityParaules||'';
+  var indDesc=(function(){var ex=state._indDescExpanded; var pw=ind.paraules||'';
     if(ex){return '<div class="ind-desc"><div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.capacitat)+' · '+esc(ind.codi)+'</div>'+esc(ind.text)+'<div style="margin-top:8px"><button class="btn-link" onclick="state._indDescExpanded=false;paintAvaluacio()">← Mostra menys</button></div></div>';}
     return '<div class="ind-desc">'+(pw?'<div class="kws">'+esc(pw)+'</div>':'<div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.codi)+'</div>')+'<button class="btn-link" onclick="state._indDescExpanded=true;paintAvaluacio()">Mostra més →</button></div>';
   })();
@@ -1257,13 +1275,13 @@ async function saveDesdoblaments(){
 }
 
 /* ====================== ADMIN: GESTIÓ D'ACTIVITATS (CATÀLEG) ====================== */
-var catEdit={ nom:'', _oldNom:null, caps:[], open:null, selected:{}, paraules:'' };
+var catEdit={ nom:'', _oldNom:null, caps:[], open:null, selected:{}, indParaules:{} };
 async function renderActCataleg(){
   $('content').innerHTML=
     '<h2 class="page-title">Gestió d\'activitats (catàleg)</h2>'+
     '<p class="page-sub">Activitats del catàleg comú. Apareixen en tots els mòduls per a tots els professors.</p>'+
     '<div class="panel"><div class="row"><div class="spacer"></div>'+
-    '<button class="btn sm" onclick="openEditCatalogActivity(null)">+ Nova activitat</button></div></div>'+
+    '<button class="btn sm" onclick="showNovaActPopup(function(){openEditCatalogActivity(null)})">+ Nova activitat</button></div></div>'+
     '<div id="catBody"><div class="empty">Carregant…</div></div>';
   var r=await call('listCatalogActivities');
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error carregant activitats.');
@@ -1287,7 +1305,7 @@ async function renderActCataleg(){
 async function openEditCatalogActivity(a){
   $('content').innerHTML='<div class="empty">Carregant indicadors…</div>';
   var rp=await call('getCapabilities',{}); if(!rp.ok) return showError(rp.error);
-  catEdit={ nom:a?a.nom:'', _oldNom:a?a.nom:null, caps:rp.caps, open:null, selected:{}, paraules:a?(a.paraules||''):'' };
+  catEdit={ nom:a?a.nom:'', _oldNom:a?a.nom:null, caps:rp.caps, open:null, selected:{}, indParaules:a?(a.indParaules||{}):{}  };
   if(a){ a.indicators.forEach(function(ind){ catEdit.selected[ind.codi]=true; }); }
   paintCatalegForm();
 }
@@ -1303,9 +1321,10 @@ function paintCatalegForm(){
       '<span class="arrow">'+(open?'▾':'▸')+'</span><span class="cn">'+esc(c.capacitat)+'</span>'+
       (chosen?'<span class="badge">'+chosen+'</span>':'')+'</button>';
     var body=open?('<div class="capBody">'+c.indicators.map(function(ind){var on=catEdit.selected[ind.codi];
-      return '<label class="indpick"><input type="checkbox" '+(on?'checked':'')+' onclick="toggleCatInd(\''+esc(ind.codi)+'\')"> '+
+      var kwInput=on?('<input class="ind-kw field" type="text" placeholder="#hashtag (opcional)" value="'+esc(catEdit.indParaules[ind.codi]||'')+'" data-code="'+esc(ind.codi)+'" oninput="catEdit.indParaules[this.dataset.code]=this.value" onclick="event.stopPropagation()">'):''
+      return '<div><label class="indpick"><input type="checkbox" '+(on?'checked':'')+' onclick="toggleCatInd(\''+esc(ind.codi)+'\')"> '+
         '<span class="swatch" style="background:'+esc(ind.colorInd||c.color)+'"></span>'+
-        '<span class="code">'+esc(ind.codi)+'</span> <span>'+esc(ind.text)+'</span></label>';
+        '<span class="code">'+esc(ind.codi)+'</span> <span>'+esc(ind.text)+'</span></label>'+kwInput+'</div>';
     }).join('')+'</div>'):'';
     return '<div class="capwrap">'+head+body+'</div>';
   }).join('');
@@ -1315,9 +1334,7 @@ function paintCatalegForm(){
     '<div class="panel">'+
       '<label>Nom de l\'activitat</label>'+
       '<input id="cat_name" class="field" style="width:100%;max-width:420px" value="'+esc(catEdit.nom)+'" oninput="catEdit.nom=this.value" placeholder="p. ex. Tutoria grupal">'+
-      '<label style="margin-top:14px">Paraules clau <span class="muted" style="font-size:12px">(opcional · p. ex. #observació #grupal)</span></label>'+
-      '<input id="cat_kw" class="field" style="width:100%;max-width:420px" value="'+esc(catEdit.paraules)+'" oninput="catEdit.paraules=this.value" placeholder="#hashtag1 #hashtag2">'+
-      '<label style="margin-top:16px">Capacitats clau i indicadors</label>'+
+      '<label style="margin-top:16px">Capacitats clau i indicadors <span class="muted" style="font-size:12px;font-weight:400">(selecciona\'n un per afegir-hi el hashtag)</span></label>'+
       '<div class="capacc">'+capHtml+'</div>'+
       '<div class="row" style="margin-top:18px">'+
         '<span class="counter">'+sel.length+' indicador'+(sel.length===1?'':'s')+' triat'+(sel.length===1?'':'s')+'</span>'+
@@ -1331,7 +1348,7 @@ async function doSaveCatalogActivity(){
   var nom=(catEdit.nom||'').trim(); if(!nom) return showError('Posa un nom a l\'activitat.');
   var codes=Object.keys(catEdit.selected).filter(function(k){return catEdit.selected[k];});
   if(!codes.length) return showError('Tria almenys un indicador.');
-  var payload={nom:nom,indicators:codes,paraules:catEdit.paraules||''};
+  var payload={nom:nom,indicators:codes,indParaules:catEdit.indParaules||{}};
   if(catEdit._oldNom&&catEdit._oldNom!==nom) payload.oldNom=catEdit._oldNom;
   var r=await call('saveCatalogActivity',payload);
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error desant activitat.');
