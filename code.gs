@@ -9,6 +9,8 @@
  * tot a String() en llegir; router únic + ping.
  *************************************************************************/
 
+function keepWarm_() {}
+
 /* ============================ CONFIG ============================ */
 var CONFIG = {
   app: { name:'EAS CC', logo:'CC' },
