@@ -518,13 +518,13 @@ async function renderAlumneResum(){
       '<div class="panel"><h3>Perfil global de CC</h3><div style="display:grid;place-items:center"><canvas id="alumneRadar" width="300" height="300"></canvas></div></div>'+
       '<div class="panel"><h3>Llegenda</h3>'+
         '<div class="legend" style="flex-direction:column;gap:8px">'+
-          '<span><i style="background:#3fb27f"></i>Excel·lent (9-10)</span>'+
-          '<span><i style="background:#4f8ef7"></i>Notable (6-8)</span>'+
-          '<span><i style="background:#e0a23c"></i>Aprovat (3-5)</span>'+
-          '<span><i style="background:#e25563"></i>Insuficient (1-2)</span>'+
+          '<span><i style="background:#3fb27f"></i>Excel·lència</span>'+
+          '<span><i style="background:#4f8ef7"></i>Assolit</span>'+
+          '<span><i style="background:#e0a23c"></i>En procés</span>'+
+          '<span><i style="background:#e25563"></i>No assolit</span>'+
           '<span><i style="background:var(--surface-3)"></i>Sense dades</span>'+
         '</div>'+
-        (isAlumne?'<p class="muted" style="font-size:12.5px;margin-top:16px">Les valoracions es calculen a partir de les evidències registrades pels professors.</p>':'')+
+        (isAlumne?'<p class="muted" style="font-size:12.5px;margin-top:16px">Les valoracions es calculen a partir de les evidències registrades pel professorat.</p>':'')+
       '</div>'+
     '</div>';
   setTimeout(function(){ var cv=$('alumneRadar'); if(cv) drawRadar(cv, CAPS.map(function(cap){return (d.globalCicle&&d.globalCicle.cells[cap])||0;}), '#7aa9ff'); }, 50);
