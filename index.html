@@ -170,8 +170,9 @@
   .toast.show{display:block}
   .overlay{position:fixed;inset:0;background:rgba(8,9,13,.7);backdrop-filter:blur(3px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
   .overlay.show{display:flex}
-  .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);width:100%;max-width:460px;padding:24px;box-shadow:var(--shadow)}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);width:100%;max-width:460px;padding:24px;box-shadow:var(--shadow);max-height:85vh;overflow-y:auto}
   .modal .actions{display:flex;gap:10px;margin-top:20px}.modal .actions .btn{margin:0}
+  @media(max-width:520px){.overlay{padding:10px}.modal{padding:16px;border-radius:10px}}
 </style>
 </head>
 <body>
@@ -187,7 +188,7 @@
     <input id="u" class="field" autocomplete="username" placeholder="usuari">
     <label for="p">Contrasenya</label>
     <input id="p" class="field" type="password" autocomplete="current-password" placeholder="••••••">
-    <button class="btn" onclick="formLogin()">Accedir</button>
+    <button class="btn" id="btnLogin" onclick="formLogin()">Accedir</button>
     <div style="text-align:center;margin-top:12px"><button class="btn-link" onclick="doRequestResetFromLogin()">Has oblidat la contrasenya?</button></div>
     <div id="pingStatus"></div>
   </div>
@@ -251,6 +252,8 @@ function setPing(t){$('pingStatus').textContent=t;}
 function toast(t){var e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(function(){e.classList.remove('show');},2600);}
 function openModal(h){$('modal').innerHTML=h;$('overlay').classList.add('show');}
 function closeModal(){$('overlay').classList.remove('show');$('modal').innerHTML='';}
+function btnBusy_(btn,label){if(!btn)return;btn._ot=btn.textContent;btn.disabled=true;btn.textContent=label||'Carregant…';}
+function btnFree_(btn){if(!btn)return;btn.disabled=false;btn.textContent=btn._ot||btn.textContent;}
 function showNovaActPopup(cb){
   window._novaActCb=cb;
   var items=['Està temporitzada a la programació des de l\'inici del projecte/curs.',
@@ -281,9 +284,10 @@ function applyTheme(){document.body.classList.toggle('light',state.theme==='ligh
 function toggleTheme(){state.theme=(state.theme==='light')?'dark':'light';try{localStorage.setItem('eascc_theme',state.theme);}catch(e){}applyTheme();}
 function initTheme(){try{var t=localStorage.getItem('eascc_theme');if(t)state.theme=t;}catch(e){}applyTheme();}
 async function doLogin(username,password){
-  clearError();setPing('Connectant…');
-  var r; try{r=await call('loginAndInit',{username:username,password:password});}catch(e){setPing('');return showError('Error de connexió: '+(e&&e.message?e.message:e));}
-  if(!r||!r.ok){setPing('');return showError(r&&r.error?r.error:'Login fallit.');}
+  var btn=$('btnLogin'); btnBusy_(btn,'Connectant…');
+  clearError();setPing('');
+  var r; try{r=await call('loginAndInit',{username:username,password:password});}catch(e){btnFree_(btn);setPing('');return showError('Error de connexió: '+(e&&e.message?e.message:e));}
+  if(!r||!r.ok){btnFree_(btn);setPing('');return showError(r&&r.error?r.error:'Login fallit.');}
   setPing('');clearError();
   state.user=r.user;
   if(r.initialData){ var d=r.initialData;
@@ -775,20 +779,22 @@ function paintActivitatForm(){
         '<span class="counter">'+sel.length+' indicador'+(sel.length===1?'':'s')+' triat'+(sel.length===1?'':'s')+'</span>'+
         '<div class="spacer"></div>'+
         '<button class="btn sm ghost" onclick="renderActivitats()">← Tornar</button>'+
-        '<button class="btn sm" onclick="doSaveActivity()">Desar activitat</button>'+
+        '<button class="btn sm" onclick="doSaveActivity(this)">Desar activitat</button>'+
       '</div>'+
     '</div>';
 }
-async function doSaveActivity(){
+async function doSaveActivity(btn){
+  if(btn&&btn.disabled) return;
   var nom=(actEdit.nom||'').trim(); if(!nom) return showError('Posa un nom a l\'activitat.');
   var codes=Object.keys(actEdit.selected).filter(function(k){return actEdit.selected[k];});
   if(!codes.length) return showError('Tria almenys un indicador.');
+  btnBusy_(btn,'Desant…');
   if(actEdit._oldNom && actEdit._oldNom!==nom){
     var rd=await call('deleteActivity',{moduleCodi:state.activModul,nom:actEdit._oldNom});
-    if(!rd.ok) return showError(rd.error);
+    if(!rd.ok){ btnFree_(btn); return showError(rd.error); }
   }
   var r=await call('saveActivity',{moduleCodi:state.activModul,nom:nom,indicators:codes,indParaules:actEdit.indParaules||{}});
-  if(!r.ok) return showError(r.error);
+  if(!r.ok){ btnFree_(btn); return showError(r.error); }
   toast(actEdit._oldNom?'Activitat actualitzada.':'Activitat creada.');
   renderActivitats();
 }
@@ -828,18 +834,27 @@ async function renderProjectes(){
 async function editProject(p){
   var rp=await call('getAllProfs'); var profs=rp.ok?rp.profs:[];
   var isNew=!p; p=p||{num:'',nom:'',profs:[]};
-  openModal('<h3>'+(isNew?'Nou projecte':'Editar projecte')+'</h3>'+
-    '<label>Núm. projecte <span class="muted" style="font-weight:400;font-size:12px">(només el número: 1, 2, 3...)</span></label><input id="pr_num" class="field" style="width:100%" value="'+esc(p.num)+'">'+
-    '<label>Nom del projecte <span class="muted" style="font-weight:400;font-size:12px">(segons la programació didàctica)</span></label><input id="pr_nom" class="field" style="width:100%" value="'+esc(p.nom)+'">'+
-    '<label>Professorat amb accés</label><div class="checks" style="display:flex;flex-wrap:wrap;gap:8px">'+
-      profs.map(function(pf){var on=p.profs.indexOf(pf.username)>-1;return '<label style="display:flex;gap:6px;align-items:center;background:var(--surface-2);border:1px solid var(--border);padding:6px 10px;border-radius:8px;font-size:13px"><input type="checkbox" class="pr_prof" value="'+esc(pf.username)+'" '+(on?'checked':'')+'> '+esc(pf.nom)+'</label>';}).join('')+'</div>'+
-    '<div class="actions"><button class="btn ghost" onclick="closeModal()">Cancel·la</button><button class="btn" onclick="saveProject()">Desar</button></div>');
+  openModal('<h3 style="margin-bottom:18px">'+(isNew?'Nou projecte':'Editar projecte')+'</h3>'+
+    '<label style="margin-top:0">Número de projecte</label>'+
+    '<input id="pr_num" class="field" style="width:100%;max-width:100px" value="'+esc(p.num)+'" placeholder="1, 2, 3…" inputmode="numeric">'+
+    '<label>Nom del projecte</label>'+
+    '<input id="pr_nom" class="field" style="width:100%" value="'+esc(p.nom)+'" placeholder="Nom segons la programació didàctica">'+
+    '<label style="margin-top:16px">Professorat amb accés</label>'+
+    '<div class="checks" style="display:flex;flex-direction:column;gap:6px;margin-top:2px">'+
+      (profs.length?profs.map(function(pf){var on=p.profs.indexOf(pf.username)>-1;
+        return '<label style="display:flex;gap:10px;align-items:center;background:var(--surface-2);border:1px solid var(--border);padding:9px 12px;border-radius:8px;font-size:14px;cursor:pointer">'+
+          '<input type="checkbox" class="pr_prof" value="'+esc(pf.username)+'" '+(on?'checked':'')+' style="width:16px;height:16px;flex:none"> '+
+          '<span>'+esc(pf.nom)+'</span></label>';}).join(''):'<span class="muted" style="font-size:13px">No hi ha professorat disponible.</span>')+
+    '</div>'+
+    '<div class="actions"><button class="btn ghost" onclick="closeModal()">Cancel·la</button><button class="btn" onclick="saveProject(this)">Desar projecte</button></div>');
 }
-async function saveProject(){
+async function saveProject(btn){
+  if(btn&&btn.disabled) return;
   var num=$('pr_num').value.trim(); if(!num) return showError('Posa el número de projecte.');
+  btnBusy_(btn,'Desant…');
   var profsel=Array.prototype.map.call(document.querySelectorAll('.pr_prof:checked'),function(i){return i.value;});
   var r=await call('saveProject',{moduleCodi:state.projModul,num:num,nom:$('pr_nom').value.trim(),professors:profsel});
-  if(!r.ok) return showError(r.error);
+  if(!r.ok){ btnFree_(btn); return showError(r.error); }
   closeModal(); toast('Projecte desat.'); renderProjectes();
 }
 function askDeleteProject(num,nom){
@@ -990,15 +1005,17 @@ function paintNewActivity(){
       '<div class="row" style="margin-top:18px;align-items:center"><span class="counter">'+sel.length+' indicador'+(sel.length===1?'':'s')+' triat'+(sel.length===1?'':'s')+'</span>'+
         '<div class="spacer"></div>'+
         '<button class="btn sm ghost" onclick="state.step=5;renderStep()">← Tornar</button>'+
-        '<button class="btn sm" onclick="createActivity()">Crear i continuar →</button></div>'+
+        '<button class="btn sm" onclick="createActivity(this)">Crear i continuar →</button></div>'+
     '</div>';
 }
-async function createActivity(){
+async function createActivity(btn){
+  if(btn&&btn.disabled) return;
   var nom=(newAct.name||'').trim(); if(!nom) return showError('Posa un nom a l\'activitat.');
   var codes=Object.keys(newAct.selected).filter(function(k){return newAct.selected[k];});
   if(!codes.length) return showError('Tria almenys un indicador.');
+  btnBusy_(btn,'Creant…');
   var r=await call('saveActivity',{moduleCodi:state.module.codi,nom:nom,indicators:codes,indParaules:newAct.indParaules||{}});
-  if(!r.ok) return showError(r.error);
+  if(!r.ok){ btnFree_(btn); return showError(r.error); }
   toast('Activitat «'+nom+'» creada al mòdul.');
   pickActivitat(nom);
 }
@@ -1039,7 +1056,7 @@ function paintAvaluacio(){
   var done=Object.keys(state.grades[ind.codi]).filter(function(k){return state.grades[ind.codi][k]!=null;}).length;
   var projTxt=state.projecte?(' · P'+esc(state.projecte.num)):'';
   var saveBtn = stt.complete
-    ? '<button class="btn sm" onclick="saveRegistre()">Desar registre</button>'
+    ? '<button class="btn sm" onclick="saveRegistre(this)">Desar registre</button>'
     : '<button class="btn sm" disabled title="Falten valoracions">Falten '+(stt.need-stt.done)+' valoracions</button>';
   var indDesc=(function(){var ex=state._indDescExpanded; var pw=ind.paraules||'';
     if(ex){return '<div class="ind-desc"><div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.capacitat)+' · '+esc(ind.codi)+'</div>'+esc(ind.text)+'<div style="margin-top:8px"><button class="btn-link" onclick="state._indDescExpanded=false;paintAvaluacio()">← Mostra menys</button></div></div>';}
@@ -1063,16 +1080,18 @@ function paintAvaluacio(){
 }
 function setGrade(stId,value){var ind=state.indicators[state.curInd];value=(value==='NA')?'NA':Number(value);state.grades[ind.codi][stId]=value;paintAvaluacio();}
 function setAll(value){var ind=state.indicators[state.curInd];value=(value==='NA')?'NA':Number(value);var all=(state.students.regular||[]).concat(state.students.pendents||[]);all.forEach(function(s){state.grades[ind.codi][s.id]=value;});paintAvaluacio();}
-async function saveRegistre(){
+async function saveRegistre(btn){
+  if(btn&&btn.disabled) return;
   var stt=evalStatus();
   if(!stt.complete){ return showError('Has d\'avaluar tots els indicadors per a tots els alumnes abans de desar (falten '+(stt.need-stt.done)+').'); }
+  btnBusy_(btn,'Desant…');
   var pl={ curs:state.curs, classe:state.classe, moduleCodi:state.module.codi,
     projecteNum:state.projecte?state.projecte.num:'', projecteNom:state.projecte?state.projecte.nom:'',
     activitat:state.activity, data:state.data, grades:state.grades, createdBy:state.user.username,
     grup:state.grup||null };
   if(state.editBlock) pl.blockCol=state.editBlock.startCol;
   var r=await call('saveRegistre', pl);
-  if(!r.ok) return showError(r.error);
+  if(!r.ok){ btnFree_(btn); return showError(r.error); }
   toast(r.result.missatge||'Desat.'); state.editBlock=null; go('evidencies');
 }
 
@@ -1089,16 +1108,18 @@ function renderForceChangePassword(){
       '<input id="fcp_new" class="field" type="password" placeholder="Nova contrasenya" style="width:100%">'+
       '<label>Confirma la contrasenya</label>'+
       '<input id="fcp_conf" class="field" type="password" placeholder="Repeteix la contrasenya" style="width:100%">'+
-      '<button class="btn" style="margin-top:18px" onclick="doForceChangePassword()">Establir contrasenya i entrar</button>'+
+      '<button class="btn" style="margin-top:18px" onclick="doForceChangePassword(this)">Establir contrasenya i entrar</button>'+
     '</div></div>';
 }
-async function doForceChangePassword(){
+async function doForceChangePassword(btn){
+  if(btn&&btn.disabled) return;
   var np=($('fcp_new')||{}).value||''; var cp=($('fcp_conf')||{}).value||'';
   if(!np) return showError('Introdueix una nova contrasenya.');
   if(np!==cp) return showError('Les contrasenyes no coincideixen.');
   if(np==='1234') return showError('Has de triar una contrasenya diferent de la inicial.');
+  btnBusy_(btn,'Desant…');
   var r=await call('changePassword',{userId:state.user.id,oldPassword:'1234',newPassword:np});
-  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error canviant la contrasenya.');
+  if(!r||!r.ok){ btnFree_(btn); return showError(r&&r.error?r.error:'Error canviant la contrasenya.'); }
   state.user.mustChangePassword=false;
   buildNav();
   $('content').innerHTML=
@@ -1122,19 +1143,21 @@ function renderPerfil(){
     '<div class="actions" style="flex-direction:column;gap:8px">'+
       '<div style="display:flex;gap:10px;width:100%">'+
         '<button class="btn ghost" style="flex:1;margin:0" onclick="closeModal()">Cancel·la</button>'+
-        '<button class="btn" style="flex:1;margin:0" onclick="doChangePwd()">Canviar contrasenya</button>'+
+        '<button class="btn" style="flex:1;margin:0" onclick="doChangePwd(this)">Canviar contrasenya</button>'+
       '</div>'+
     '</div>'
   );
 }
-async function doChangePwd(){
+async function doChangePwd(btn){
+  if(btn&&btn.disabled) return;
   var old=($('pf_old')||{}).value||'';
   var np=($('pf_new')||{}).value||'';
   var cp=($('pf_conf')||{}).value||'';
   if(!old||!np) return showError('Omple tots els camps.');
   if(np!==cp) return showError('Les contrasenyes noves no coincideixen.');
+  btnBusy_(btn,'Desant…');
   var r=await call('changePassword',{userId:state.user.id,oldPassword:old,newPassword:np});
-  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error canviant la contrasenya.');
+  if(!r||!r.ok){ btnFree_(btn); return showError(r&&r.error?r.error:'Error canviant la contrasenya.'); }
   closeModal(); toast('Contrasenya actualitzada.');
 }
 async function doRequestResetFromLogin(){
@@ -1353,18 +1376,20 @@ function paintCatalegForm(){
         '<span class="counter">'+sel.length+' indicador'+(sel.length===1?'':'s')+' triat'+(sel.length===1?'':'s')+'</span>'+
         '<div class="spacer"></div>'+
         '<button class="btn sm ghost" onclick="renderActCataleg()">← Tornar</button>'+
-        '<button class="btn sm" onclick="doSaveCatalogActivity()">Desar activitat</button>'+
+        '<button class="btn sm" onclick="doSaveCatalogActivity(this)">Desar activitat</button>'+
       '</div>'+
     '</div>';
 }
-async function doSaveCatalogActivity(){
+async function doSaveCatalogActivity(btn){
+  if(btn&&btn.disabled) return;
   var nom=(catEdit.nom||'').trim(); if(!nom) return showError('Posa un nom a l\'activitat.');
   var codes=Object.keys(catEdit.selected).filter(function(k){return catEdit.selected[k];});
   if(!codes.length) return showError('Tria almenys un indicador.');
+  btnBusy_(btn,'Desant…');
   var payload={nom:nom,indicators:codes,indParaules:catEdit.indParaules||{}};
   if(catEdit._oldNom&&catEdit._oldNom!==nom) payload.oldNom=catEdit._oldNom;
   var r=await call('saveCatalogActivity',payload);
-  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error desant activitat.');
+  if(!r||!r.ok){ btnFree_(btn); return showError(r&&r.error?r.error:'Error desant activitat.'); }
   toast(catEdit._oldNom?'Activitat actualitzada.':'Activitat creada.');
   renderActCataleg();
 }
