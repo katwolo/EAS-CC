@@ -1060,7 +1060,7 @@ function paintAvaluacio(){
     : '<button class="btn sm" disabled title="Falten valoracions">Falten '+(stt.need-stt.done)+' valoracions</button>';
   var indDesc=(function(){var ex=state._indDescExpanded; var pw=ind.paraules||'';
     if(ex){return '<div class="ind-desc"><div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.capacitat)+' · '+esc(ind.codi)+'</div>'+esc(ind.text)+'<div style="margin-top:8px"><button class="btn-link" onclick="state._indDescExpanded=false;paintAvaluacio()">← Mostra menys</button></div></div>';}
-    return '<div class="ind-desc">'+(pw?'<div class="kws"><span style="color:'+esc(ind.colorInd)+';font-weight:600">'+esc(ind.codi)+'</span> – '+esc(pw)+'</div>':'<div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.codi)+'</div>')+'<button class="btn-link" onclick="state._indDescExpanded=true;paintAvaluacio()">Mostra més →</button></div>';
+    return '<div class="ind-desc">'+(pw?'<div class="kws"><span style="color:'+esc(ind.colorInd)+';font-weight:600">'+esc(ind.codi.charAt(0).toUpperCase()+ind.codi.slice(1))+'</span> – '+esc(pw)+'</div>':'<div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.codi)+'</div>')+'<button class="btn-link" onclick="state._indDescExpanded=true;paintAvaluacio()">Mostra més →</button></div>';
   })();
   $('step').innerHTML=
     '<h2 class="step-title">'+(state.editBlock?'Editar registre · ':'Avaluació · ')+esc(state.activity)+'</h2>'+
