@@ -80,6 +80,7 @@
 
   .page-title{font-size:22px;margin-bottom:4px}.page-sub{color:var(--muted);font-size:14px;margin-bottom:20px}
   .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:16px}
+  .panel.scrollable{max-height:calc(100vh - 280px);overflow-y:auto}
   .panel h3{font-size:15px;margin-bottom:14px}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.spacer{flex:1}
   .muted{color:var(--muted)}.empty{text-align:center;color:var(--muted);padding:30px;font-size:14px}
@@ -149,7 +150,7 @@
   .ntag{font-size:10.5px;background:var(--surface-3);color:var(--muted);padding:2px 7px;border-radius:5px;margin-left:8px;text-decoration:none;display:inline-block}
   .ptag{font-size:10.5px;background:rgba(224,162,60,.18);color:#f0c074;padding:2px 7px;border-radius:5px;margin-left:8px}
   .subhead{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:18px 0 6px}
-  .allrow{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--border);margin-bottom:6px}
+  .allrow{display:flex;align-items:center;gap:10px;padding-bottom:10px;border-bottom:1px solid var(--border);margin-bottom:6px;position:sticky;top:0;z-index:2;background:var(--surface);margin-left:-20px;margin-right:-20px;padding-left:20px;padding-right:20px;padding-top:4px}
   .counter{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
   /* resum grid */
   .cell{width:30px;height:26px;border-radius:6px;display:inline-block;background:var(--surface-3)}
@@ -1067,7 +1068,7 @@ function paintAvaluacio(){
     '<p class="step-sub">Grup '+esc(state.classe)+' · «'+esc(state.module.nom)+'»'+projTxt+' · '+esc(state.data)+'</p>'+
     '<div class="indtabs">'+tabs+'</div>'+
     indDesc+
-    '<div class="panel"><div class="allrow"><span class="muted" style="font-size:13px">Aplica a tots →</span><div class="gbtns">'+
+    '<div class="panel scrollable"><div class="allrow"><span class="muted" style="font-size:13px">Aplica a tots →</span><div class="gbtns">'+
       NB().map(function(b){var na=(b.value==='NA')?' na':'';var bg=(b.value==='NA')?'':('background:'+b.color);return '<button class="gbtn'+na+'" style="'+bg+'" title="'+esc(b.label)+'" onclick="setAll(\''+b.value+'\')"></button>';}).join('')+
       '</div><div class="spacer"></div><span class="counter">'+done+' / '+all.length+'</span></div>'+
       lines(state.students.regular||[],false)+
