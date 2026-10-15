@@ -126,6 +126,7 @@ function handleRequest(action, payload) {
       case 'deleteActivity':        return { ok:true, deleted: deleteActivity_(payload) };
       // admin: usuaris
       case 'getAdminUsers':         return { ok:true, data: getAdminUsers_() };
+      case 'editUser':              return { ok:true, done: editUser_(payload) };
       case 'resetPassword':         return { ok:true, done: resetPassword_(payload) };
       case 'changePassword':        return { ok:true, done: changePassword_(payload) };
       case 'requestPasswordReset':  return { ok:true, done: requestPasswordReset_(payload) };
@@ -952,6 +953,7 @@ function getAdminUsers_(){
     var moduls=parseModuls_(u[c.moduls]).map(function(code){ return modIdx[code]||{codi:code,nom:code}; });
     var obj={id:String(u[c.id]),nom:String(u[c.nom]),cognom:String(u[c.cognom]),
       username:String(u[c.username]),rol:String(u[c.rol]),classe:String(u[c.classe]||''),
+      correu:String(u[c.correu]||''), modulsCodes:String(u[c.moduls]||''),
       moduls:moduls, resetRequest:String(u[c.resetRequest]||'')};
     var r=String(u[c.rol]);
     if(r==='admin') admins.push(obj);
@@ -961,6 +963,64 @@ function getAdminUsers_(){
   var bySort=function(a,b){return (a.cognom+a.nom).localeCompare(b.cognom+b.nom);};
   admins.sort(bySort); professors.sort(bySort); alumnes.sort(bySort);
   return { admins:admins, professors:professors, alumnes:alumnes };
+}
+function editUser_(p){
+  var c=CONFIG.cols.usuaris;
+  bustMain_('usuaris');
+  var data=readMain_('usuaris');
+  var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
+  var hdrs=data.headers;
+  var oldNom, oldCognom, found=false;
+  data.rows.forEach(function(u){
+    if(String(u[c.id])!==String(p.userId)) return;
+    found=true;
+    oldNom=String(u[c.nom]).trim();
+    oldCognom=String(u[c.cognom]).trim();
+    var fields=[
+      {col:c.nom,      val:p.nom},
+      {col:c.cognom,   val:p.cognom},
+      {col:c.correu,   val:p.correu},
+      {col:c.username, val:p.username},
+      {col:c.classe,   val:p.classe},
+      {col:c.moduls,   val:p.modulsCodes},
+      {col:c.rol,      val:p.rol}
+    ];
+    fields.forEach(function(f){
+      if(f.val===undefined||f.val===null) return;
+      var ci=colIndex_(hdrs,f.col);
+      if(ci>0) sh.getRange(u.__row,ci).setValue(String(f.val));
+    });
+  });
+  if(!found) throw new Error('Usuari no trobat.');
+  var newNom=(p.nom!==undefined&&p.nom!==null)?String(p.nom).trim():oldNom;
+  var newCognom=(p.cognom!==undefined&&p.cognom!==null)?String(p.cognom).trim():oldCognom;
+  if(newNom!==oldNom||newCognom!==oldCognom){
+    updateNameInModuleTabs_(oldNom,oldCognom,newNom,newCognom);
+  }
+  return true;
+}
+function updateNameInModuleTabs_(oldNom,oldCognom,newNom,newCognom){
+  var T=CONFIG.modTab, R=CONFIG.resTab;
+  var ss=getSS_();
+  var skip=[CONFIG.sheets.usuaris.name,CONFIG.sheets.moduls.name,CONFIG.sheets.actInd.name,CONFIG.sheets.indicadors.name];
+  var oldKey=(oldNom+'|'+oldCognom).toLowerCase();
+  ss.getSheets().forEach(function(sheet){
+    var name=sheet.getName();
+    if(skip.indexOf(name)>-1) return;
+    if(/\bOrg$/.test(name)||/\bAct$/.test(name)) return;
+    var isResum=/Resum/.test(name);
+    var startRow=isResum?R.rosterRow:T.rosterRow;
+    var last=sheet.getLastRow();
+    if(last<startRow) return;
+    var vals=sheet.getRange(startRow,T.nomCol,last-startRow+1,2).getValues();
+    for(var i=0;i<vals.length;i++){
+      var nom=String(vals[i][0]||'').trim(), cog=String(vals[i][1]||'').trim();
+      if((nom+'|'+cog).toLowerCase()===oldKey){
+        sheet.getRange(startRow+i,T.nomCol).setValue(newNom);
+        sheet.getRange(startRow+i,T.cogCol).setValue(newCognom);
+      }
+    }
+  });
 }
 function resetPassword_(p){
   var c=CONFIG.cols.usuaris;

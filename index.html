@@ -1209,7 +1209,10 @@ function filterAdminUsers(){
     return '<tr><td>'+esc(u.cognom)+', '+esc(u.nom)+'</td><td class="mono">'+esc(u.username)+'</td>'+
       '<td><span style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">'+esc(u.rol)+'</span></td>'+
       '<td>'+esc(u.classe||'—')+'</td>'+
-      '<td style="text-align:right"><button class="btn sm ghost" onclick=\'openResetPwd('+j({id:u.id,nom:u.nom,cognom:u.cognom,username:u.username})+')\'">Restablir</button></td></tr>';
+      '<td style="text-align:right">'+
+      '<button class="btn sm ghost" style="margin-right:4px" onclick=\'openEditUser('+j({id:u.id,nom:u.nom,cognom:u.cognom,username:u.username,correu:u.correu,rol:u.rol,classe:u.classe,modulsCodes:u.modulsCodes})+')\'">✏️</button>'+
+      '<button class="btn sm ghost" onclick=\'openResetPwd('+j({id:u.id,nom:u.nom,cognom:u.cognom,username:u.username})+')\'">Restablir</button>'+
+      '</td></tr>';
   }).join('');
   $('userTable').innerHTML=
     '<div class="panel" style="padding:6px 8px;overflow:auto">'+
@@ -1236,6 +1239,53 @@ async function doResetPwd(uid){
   } else {
     toast('Contrasenya restablerta.');
   }
+}
+function openEditUser(u){
+  var isAlumne=(u.rol==='alumne');
+  openModal(
+    '<h3>Editar usuari</h3>'+
+    '<p class="muted" style="margin-bottom:14px">ID intern: <b>'+esc(u.id)+'</b></p>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">'+
+      '<div><label style="font-size:12px;color:var(--muted)">Nom</label>'+
+      '<input id="eu_nom" class="field" style="width:100%" value="'+esc(u.nom||'')+'"></div>'+
+      '<div><label style="font-size:12px;color:var(--muted)">Cognoms</label>'+
+      '<input id="eu_cognom" class="field" style="width:100%" value="'+esc(u.cognom||'')+'"></div>'+
+    '</div>'+
+    '<label style="font-size:12px;color:var(--muted)">Correu corporatiu</label>'+
+    '<input id="eu_correu" class="field" style="width:100%;margin-bottom:10px" value="'+esc(u.correu||'')+'">'+
+    '<label style="font-size:12px;color:var(--muted)">Nom d\'usuari</label>'+
+    '<input id="eu_username" class="field" style="width:100%;margin-bottom:10px" value="'+esc(u.username||'')+'">'+
+    '<label style="font-size:12px;color:var(--muted)">Rol</label>'+
+    '<select id="eu_rol" class="field" style="width:100%;margin-bottom:10px">'+
+      ['admin','professor','alumne'].map(function(r){return '<option value="'+r+'"'+(u.rol===r?' selected':'')+'>'+r+'</option>';}).join('')+
+    '</select>'+
+    (isAlumne?
+      '<label style="font-size:12px;color:var(--muted)">Classe</label>'+
+      '<input id="eu_classe" class="field" style="width:100%;margin-bottom:10px" value="'+esc(u.classe||'')+'">'+
+      '<label style="font-size:12px;color:var(--muted)">Mòduls (codis separats per comes, o <em>tots</em>)</label>'+
+      '<input id="eu_moduls" class="field" style="width:100%;margin-bottom:10px" value="'+esc(u.modulsCodes||'')+'">':'')+
+    '<p class="muted" style="font-size:11.5px;margin-top:4px">⚠️ Si canvies el nom o cognoms, s\'actualitzarà automàticament a totes les pestanyes dels mòduls.</p>'+
+    '<div class="actions"><button class="btn ghost" onclick="closeModal()">Cancel·la</button>'+
+    '<button class="btn" onclick="doEditUser(\''+esc(u.id)+'\',\''+esc(u.rol)+'\')">Desar</button></div>'
+  );
+}
+async function doEditUser(uid, rol){
+  var nom=($('eu_nom')||{}).value||'';
+  var cognom=($('eu_cognom')||{}).value||'';
+  var correu=($('eu_correu')||{}).value||'';
+  var username=($('eu_username')||{}).value||'';
+  var newRol=($('eu_rol')||{}).value||rol;
+  var classe=($('eu_classe')||{}).value;
+  var modulsCodes=($('eu_moduls')||{}).value;
+  if(!nom||!cognom||!username) return showError('Nom, cognoms i nom d\'usuari són obligatoris.');
+  var payload={userId:uid,nom:nom.trim(),cognom:cognom.trim(),correu:correu.trim(),username:username.trim(),rol:newRol};
+  if(classe!==undefined&&classe!==null) payload.classe=classe.trim();
+  if(modulsCodes!==undefined&&modulsCodes!==null) payload.modulsCodes=modulsCodes.trim();
+  var r=await call('editUser',payload);
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error desant les dades.');
+  closeModal();
+  toast('Usuari actualitzat correctament.');
+  renderUsuaris();
 }
 function renderAdminAvisosTab(ad){
   var tots=(ad.admins||[]).concat(ad.professors||[]).concat(ad.alumnes||[]);
