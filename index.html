@@ -1064,6 +1064,7 @@ function paintAvaluacio(){
     if(ex){return '<div class="ind-desc"><div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.capacitat)+' · '+esc(ind.codi)+'</div>'+esc(ind.text)+'<div style="margin-top:8px"><button class="btn-link" onclick="state._indDescExpanded=false;paintAvaluacio()">← Mostra menys</button></div></div>';}
     return '<div class="ind-desc">'+(pw?'<div class="kws"><span style="color:'+esc(ind.colorInd)+';font-weight:600">'+esc(ind.codi.charAt(0).toUpperCase()+ind.codi.slice(1))+'</span> – '+esc(pw)+'</div>':'<div class="cap" style="color:'+esc(ind.colorInd)+'">'+esc(ind.codi)+'</div>')+'<button class="btn-link" onclick="state._indDescExpanded=true;paintAvaluacio()">Mostra més →</button></div>';
   })();
+  var _panel=document.querySelector('.panel.scrollable'); var _scroll=_panel?_panel.scrollTop:0;
   $('step').innerHTML=
     '<h2 class="step-title">'+(state.editBlock?'Editar registre · ':'Avaluació · ')+esc(state.activity)+'</h2>'+
     '<p class="step-sub">Grup '+esc(state.classe)+' · «'+esc(state.module.nom)+'»'+projTxt+' · '+esc(state.data)+'</p>'+
@@ -1079,6 +1080,7 @@ function paintAvaluacio(){
     '<div class="legend">'+NB().map(function(b){var sw=(b.value==='NA')?'background:repeating-linear-gradient(45deg,var(--stripe-a),var(--stripe-a) 4px,var(--stripe-b) 4px,var(--stripe-b) 8px)':'background:'+b.color;return '<span><i style="'+sw+'"></i>'+esc(b.label)+'</span>';}).join('')+'</div>'+
     (stt.complete?'':'<div class="muted" style="font-size:12.5px;margin-top:10px">Has d\'avaluar tots els indicadors per a tots els alumnes abans de desar. Pendents: '+stt.pending.join(', ')+'</div>')+
     '<div class="row" style="margin-top:18px"><div class="spacer"></div><button class="btn sm ghost" onclick="go(\'registrar\')">Cancel·lar</button>'+saveBtn+'</div>';
+  var _newPanel=document.querySelector('.panel.scrollable'); if(_newPanel&&_scroll) _newPanel.scrollTop=_scroll;
 }
 function setGrade(stId,value){var ind=state.indicators[state.curInd];value=(value==='NA')?'NA':Number(value);state.grades[ind.codi][stId]=value;paintAvaluacio();}
 function setAll(value){var ind=state.indicators[state.curInd];value=(value==='NA')?'NA':Number(value);var all=(state.students.regular||[]).concat(state.students.pendents||[]);all.forEach(function(s){state.grades[ind.codi][s.id]=value;});paintAvaluacio();}
