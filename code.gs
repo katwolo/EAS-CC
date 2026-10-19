@@ -126,6 +126,7 @@ function handleRequest(action, payload) {
       case 'deleteActivity':        return { ok:true, deleted: deleteActivity_(payload) };
       // admin: usuaris
       case 'getAdminUsers':         return { ok:true, data: getAdminUsers_() };
+      case 'deleteUser':            return { ok:true, done: deleteUser_(payload) };
       case 'editUser':              return { ok:true, done: editUser_(payload) };
       case 'resetPassword':         return { ok:true, done: resetPassword_(payload) };
       case 'changePassword':        return { ok:true, done: changePassword_(payload) };
@@ -963,6 +964,50 @@ function getAdminUsers_(){
   var bySort=function(a,b){return (a.cognom+a.nom).localeCompare(b.cognom+b.nom);};
   admins.sort(bySort); professors.sort(bySort); alumnes.sort(bySort);
   return { admins:admins, professors:professors, alumnes:alumnes };
+}
+function deleteUser_(p){
+  var c=CONFIG.cols.usuaris;
+  bustMain_('usuaris');
+  var data=readMain_('usuaris');
+  var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
+  var hdrs=data.headers;
+  var nom, cognom, found=false;
+  data.rows.forEach(function(u){
+    if(String(u[c.id])!==String(p.userId)) return;
+    found=true;
+    nom=String(u[c.nom]).trim();
+    cognom=String(u[c.cognom]).trim();
+    var idCol=colIndex_(hdrs,c.id);
+    var blank=[];
+    for(var ci=0;ci<hdrs.length;ci++) blank.push(ci+1===idCol?String(u[c.id]):'');
+    sh.getRange(u.__row,1,1,hdrs.length).setValues([blank]);
+  });
+  if(!found) throw new Error('Usuari no trobat.');
+  deleteFromModuleTabs_(nom,cognom);
+  return true;
+}
+function deleteFromModuleTabs_(nom,cognom){
+  var T=CONFIG.modTab, R=CONFIG.resTab;
+  var ss=getSS_();
+  var skip=[CONFIG.sheets.usuaris.name,CONFIG.sheets.moduls.name,CONFIG.sheets.actInd.name,CONFIG.sheets.indicadors.name];
+  var key=(nom+'|'+cognom).toLowerCase();
+  ss.getSheets().forEach(function(sheet){
+    var name=sheet.getName();
+    if(skip.indexOf(name)>-1) return;
+    if(/\bOrg$/.test(name)||/\bAct$/.test(name)) return;
+    var isResum=/Resum/.test(name);
+    var startRow=isResum?R.rosterRow:T.rosterRow;
+    var last=sheet.getLastRow();
+    if(last<startRow) return;
+    var vals=sheet.getRange(startRow,T.nomCol,last-startRow+1,2).getValues();
+    var toDelete=[];
+    for(var i=0;i<vals.length;i++){
+      var n=String(vals[i][0]||'').trim(), cg=String(vals[i][1]||'').trim();
+      if((n+'|'+cg).toLowerCase()===key) toDelete.push(startRow+i);
+    }
+    toDelete.sort(function(a,b){return b-a;});
+    toDelete.forEach(function(row){sheet.deleteRow(row);});
+  });
 }
 function editUser_(p){
   var c=CONFIG.cols.usuaris;
