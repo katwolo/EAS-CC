@@ -1080,7 +1080,7 @@ function paintAvaluacio(){
     '<div class="legend">'+NB().map(function(b){var sw=(b.value==='NA')?'background:repeating-linear-gradient(45deg,var(--stripe-a),var(--stripe-a) 4px,var(--stripe-b) 4px,var(--stripe-b) 8px)':'background:'+b.color;return '<span><i style="'+sw+'"></i>'+esc(b.label)+'</span>';}).join('')+'</div>'+
     (stt.complete?'':'<div class="muted" style="font-size:12.5px;margin-top:10px">Has d\'avaluar tots els indicadors per a tots els alumnes abans de desar. Pendents: '+stt.pending.join(', ')+'</div>')+
     '<div class="row" style="margin-top:18px"><div class="spacer"></div><button class="btn sm ghost" onclick="go(\'registrar\')">Cancel·lar</button>'+saveBtn+'</div>';
-  var _newPanel=document.querySelector('.panel.scrollable'); if(_newPanel&&_scroll) _newPanel.scrollTop=_scroll;
+  var _newPanel=document.querySelector('.panel.scrollable'); if(_newPanel&&_scroll) setTimeout(function(){_newPanel.scrollTop=_scroll;},0);
 }
 function setGrade(stId,value){var ind=state.indicators[state.curInd];value=(value==='NA')?'NA':Number(value);state.grades[ind.codi][stId]=value;paintAvaluacio();}
 function setAll(value){var ind=state.indicators[state.curInd];value=(value==='NA')?'NA':Number(value);var all=(state.students.regular||[]).concat(state.students.pendents||[]);all.forEach(function(s){state.grades[ind.codi][s.id]=value;});paintAvaluacio();}
