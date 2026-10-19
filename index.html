@@ -1304,13 +1304,14 @@ function confirmDeleteUser(id,nom,cognom,rol){
     '</p>'+
     '<div class="actions">'+
       '<button class="btn ghost" onclick="closeModal()">Cancel·la</button>'+
-      '<button class="btn" style="background:#e25563;border-color:#e25563" onclick="doDeleteUser(\''+esc(id)+'\')">Esborrar definitivament</button>'+
+      '<button class="btn" style="background:#e25563;border-color:#e25563" onclick="doDeleteUser(this,\''+esc(id)+'\')">Esborrar definitivament</button>'+
     '</div>'
   );
 }
-async function doDeleteUser(uid){
+async function doDeleteUser(btn,uid){
+  btnBusy_(btn,'Esborrant…');
   var r=await call('deleteUser',{userId:uid});
-  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error esborrant l\'alumne.');
+  if(!r||!r.ok){if(btn){btn.disabled=false;btn.textContent=btn._ot||'Esborrar definitivament';}return showError(r&&r.error?r.error:'Error esborrant l\'alumne.');}
   closeModal();
   toast('Alumne esborrat correctament.');
   renderUsuaris();
