@@ -1267,12 +1267,11 @@ function openEditUser(u){
     '<p class="muted" style="font-size:11.5px;margin-top:4px">⚠️ Si canvies el nom o cognoms, s\'actualitzarà automàticament a totes les pestanyes dels mòduls.</p>'+
     '<div class="actions"><button class="btn ghost" onclick="closeModal()">Cancel·la</button>'+
     '<button class="btn" onclick="doEditUser(\''+esc(u.id)+'\',\''+esc(u.rol)+'\')">Desar</button></div>'+
-    (isAlumne?
-      '<hr style="border:none;border-top:1px solid var(--border);margin:16px 0 10px">'+
-      '<div style="display:flex;align-items:center;justify-content:space-between">'+
-        '<span style="font-size:12px;color:var(--muted)">Zona de perill</span>'+
-        '<button class="btn sm ghost" style="color:#e25563;border-color:#e25563" onclick="confirmDeleteUser('+j({id:u.id,nom:u.nom,cognom:u.cognom})+')">Esborrar alumne</button>'+
-      '</div>':'')
+    '<hr style="border:none;border-top:1px solid var(--border);margin:16px 0 10px">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between">'+
+      '<span style="font-size:12px;color:var(--muted)">Zona de perill</span>'+
+      '<button class="btn sm ghost" style="color:#e25563;border-color:#e25563" onclick="confirmDeleteUser('+j({id:u.id,nom:u.nom,cognom:u.cognom,rol:u.rol})+')">Esborrar usuari</button>'+
+    '</div>'
   );
 }
 async function doEditUser(uid, rol){
@@ -1299,7 +1298,7 @@ function confirmDeleteUser(u){
     '<p>Segur que vols esborrar <b>'+esc(u.cognom)+', '+esc(u.nom)+'</b>?</p>'+
     '<p class="muted" style="font-size:12px;margin-top:6px">'+
       '· La fila de la pestanya Usuaris quedarà buida (es conserva l\'ID).<br>'+
-      '· Les files d\'aquest alumne als mòduls s\'eliminaran completament.<br>'+
+      (u.rol==='alumne'?'· Les files d\'aquest alumne als mòduls s\'eliminaran completament.<br>':'')+
       '· Aquesta acció <b>no es pot desfer</b>.'+
     '</p>'+
     '<div class="actions">'+
