@@ -1585,7 +1585,7 @@ function paintHistorial(){
     var ccCells=CAPS.map(function(c){
       var v=reg.ccMeans[c];
       if(v===null||v===undefined) return '<td style="text-align:center;color:var(--muted)">—</td>';
-      return '<td style="text-align:center"><span style="display:inline-block;width:28px;height:24px;line-height:24px;border-radius:4px;font-size:12px;font-weight:700;background:#'+gradeHex_(v)+';color:#fff">'+v+'</span></td>';
+      return '<td style="text-align:center"><span style="display:inline-block;width:20px;height:20px;border-radius:4px;background:#'+gradeHex_(v)+'" title="'+v+'"></span></td>';
     }).join('');
     var dataStr=reg.data?String(reg.data).substring(0,10):'—';
     return '<tr class="hist-row" onclick="toggleHistRow(\''+esc(actKey)+'\')" style="cursor:pointer">'+
