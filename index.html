@@ -241,6 +241,8 @@ var state = { user:null, device:'pc', theme:'dark', view:'inici',
 
 var CAPS=['c1','c2','c3','c4','c5','c6','c7'];
 var CAP_NOMS={c1:'Organització',c2:'Iniciativa',c3:'Responsabilitat',c4:'Autonomia',c5:'Treball equip',c6:'Rel. interpersonals',c7:'Resolució'};
+var CAP_ABBR={c1:'Org',c2:'Ini',c3:'Resp',c4:'Aut',c5:'Eq',c6:'Rel',c7:'Prob'};
+var CAP_BG={c1:'#B4A7D6',c2:'#FFE599',c3:'#A4C2F4',c4:'#B6D7A8',c5:'#A2C4C9',c6:'#F9CB9C',c7:'#EA9999'};
 
 function $(id){return document.getElementById(id);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
@@ -322,7 +324,9 @@ function buildNav(){
     return;
   }
   if(state.user&&state.user.rol==='alumne'){
-    $('nav').innerHTML='<button data-v="alumneresum" onclick="go(\'alumneresum\')">El meu resum</button>';
+    var navH='<button data-v="alumneresum" onclick="go(\'alumneresum\')">El meu resum</button>';
+    if(state.user.historialEnabled) navH+='<button data-v="historial" onclick="go(\'historial\')">Historial</button>';
+    $('nav').innerHTML=navH;
     return;
   }
   if(state.device==='mobile'){
@@ -370,6 +374,7 @@ function go(view){
   if(view==='actcataleg') return renderActCataleg();
   if(view==='alumnes') return renderAlumnes();
   if(view==='alumneresum') return renderAlumneResum();
+  if(view==='historial') return renderHistorial();
 }
 
 /* ---------- selectors compartits (classe + mòdul) ---------- */
@@ -1178,6 +1183,7 @@ async function renderUsuaris(){
     '<h2 class="page-title">Gestió d\'usuaris</h2>'+
     '<div class="row" style="margin-bottom:16px;gap:6px">'+
       '<button class="btn sm '+(state.adminTab==='usuaris'?'':'ghost')+'" onclick="setAdminTab(\'usuaris\')">Usuaris</button>'+
+      '<button class="btn sm '+(state.adminTab==='classes'?'':'ghost')+'" onclick="setAdminTab(\'classes\')">Classes</button>'+
       '<button class="btn sm '+(state.adminTab==='desdoblaments'?'':'ghost')+'" onclick="setAdminTab(\'desdoblaments\')">Desdoblaments</button>'+
       '<button class="btn sm '+(state.adminTab==='avisos'?'':'ghost')+'" id="tabAvisos" onclick="setAdminTab(\'avisos\')">Avisos</button>'+
     '</div>'+
@@ -1188,6 +1194,7 @@ async function renderUsuaris(){
   var nAvisos=(ad.admins||[]).concat(ad.professors||[]).concat(ad.alumnes||[]).filter(function(u){return u.resetRequest;}).length;
   var tabBtn=$('tabAvisos'); if(tabBtn&&nAvisos) tabBtn.textContent='Avisos ('+nAvisos+')';
   if(state.adminTab==='usuaris') renderAdminUsuarisTab(ad);
+  else if(state.adminTab==='classes') renderAdminClassesTab();
   else if(state.adminTab==='desdoblaments') renderAdminDesdoblTab(ad);
   else renderAdminAvisosTab(ad);
 }
@@ -1487,6 +1494,154 @@ async function doDeleteCatalogActivity(nom){
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error eliminant activitat.');
   closeModal(); toast('Activitat eliminada.'); renderActCataleg();
 }
+
+/* ====================== ADMIN: CLASSES ====================== */
+async function renderAdminClassesTab(){
+  $('adminBody').innerHTML='<div class="empty">Carregant…</div>';
+  var r=await call('getClassesConfig');
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error carregant classes.');
+  paintClassesConfig(r.config);
+}
+function paintClassesConfig(cfg){
+  var FIXED=['1A','1B','1C','2A','2B','2C'];
+  var rows=FIXED.map(function(c){
+    var on=!!(cfg&&cfg[c]);
+    return '<tr>'+
+      '<td style="font-weight:600;font-size:15px">'+esc(c)+'</td>'+
+      '<td>'+
+        '<button id="clsBtn_'+esc(c)+'" class="btn sm '+(on?'':'ghost')+'" onclick="toggleClassHistorial(\''+esc(c)+'\','+(on?'true':'false')+')">'+
+          (on?'Activat':'Desactivat')+
+        '</button>'+
+      '</td>'+
+    '</tr>';
+  }).join('');
+  $('adminBody').innerHTML=
+    '<div class="panel" style="padding:16px">'+
+    '<p class="muted" style="margin:0 0 14px;font-size:13px">Activa l\'historial de qualificacions per classe. Els alumnes de les classes activades veuran la pestanya «Historial» al seu perfil.</p>'+
+    '<table><thead><tr><th>Classe</th><th>Historial alumne</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody></table>'+
+    '<div class="actions" style="margin-top:16px"><button class="btn" onclick="saveClassesConfig()">Desa</button></div>'+
+    '</div>';
+  state._classesConfig=JSON.parse(JSON.stringify(cfg||{}));
+}
+function toggleClassHistorial(classe, current){
+  state._classesConfig=state._classesConfig||{};
+  var newVal=!current;
+  state._classesConfig[classe]=newVal;
+  var btn=$('clsBtn_'+classe);
+  if(btn){ btn.textContent=newVal?'Activat':'Desactivat'; btn.classList.toggle('ghost',!newVal); btn.setAttribute('onclick','toggleClassHistorial(\''+esc(classe)+'\','+(newVal?'true':'false')+')'); }
+}
+async function saveClassesConfig(){
+  var r=await call('saveClassesConfig',{config:state._classesConfig||{}});
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error desant classes.');
+  toast('Configuració de classes desada.');
+}
+
+/* ====================== ALUMNE: HISTORIAL ====================== */
+var _historialData=null;
+var _historialFilters={modul:'',cc:''};
+async function renderHistorial(){
+  $('content').innerHTML=
+    '<h2 class="page-title">Historial de qualificacions</h2>'+
+    '<div id="histFilters" class="row" style="gap:8px;margin-bottom:14px;flex-wrap:wrap"></div>'+
+    '<div id="histBody"><div class="empty">Carregant…</div></div>';
+  var r=await call('getAlumneHistorial',{userId:state.user.id});
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error carregant historial.');
+  _historialData=r.data;
+  paintHistorial();
+}
+function paintHistorial(){
+  var data=_historialData;
+  if(!data||!data.registres||!data.registres.length){
+    $('histBody').innerHTML='<div class="empty">Encara no hi ha activitats qualificades.</div>';
+    $('histFilters').innerHTML='';
+    return;
+  }
+  var registres=data.registres;
+  // Build filter options
+  var moduls={};
+  registres.forEach(function(r){ moduls[r.moduleCodi]=r.moduleNom; });
+  var modOpts='<option value="">Tots els mòduls</option>'+Object.keys(moduls).map(function(k){ return '<option value="'+esc(k)+'"'+(k===_historialFilters.modul?' selected':'')+'>'+esc(moduls[k]||k)+'</option>'; }).join('');
+  var ccOpts='<option value="">Totes les CC</option>'+CAPS.map(function(c){ return '<option value="'+esc(c)+'"'+(c===_historialFilters.cc?' selected':'')+'>'+esc(CAP_ABBR[c])+'</option>'; }).join('');
+  $('histFilters').innerHTML=
+    '<select class="field" style="min-width:160px" onchange="setHistFilter(\'modul\',this.value)">'+modOpts+'</select>'+
+    '<select class="field" style="min-width:120px" onchange="setHistFilter(\'cc\',this.value)">'+ccOpts+'</select>';
+  // Apply filters
+  var filtered=registres.filter(function(r){
+    if(_historialFilters.modul && r.moduleCodi!==_historialFilters.modul) return false;
+    if(_historialFilters.cc){
+      var v=r.ccMeans[_historialFilters.cc];
+      if(v===null||v===undefined) return false;
+    }
+    return true;
+  });
+  if(!filtered.length){ $('histBody').innerHTML='<div class="empty">Cap resultat per als filtres seleccionats.</div>'; return; }
+  // Table header: Activitat, Data, Mòdul, c1..c7
+  var thCC=CAPS.map(function(c){
+    return '<th style="background:'+CAP_BG[c]+';color:#333;font-size:11px;text-align:center;padding:4px 6px" title="'+esc(CAP_NOMS[c])+'">'+esc(CAP_ABBR[c])+'</th>';
+  }).join('');
+  var rows=filtered.map(function(reg,idx){
+    var actKey='hist_'+idx;
+    var ccCells=CAPS.map(function(c){
+      var v=reg.ccMeans[c];
+      if(v===null||v===undefined) return '<td style="text-align:center;color:var(--muted)">—</td>';
+      return '<td style="text-align:center"><span style="display:inline-block;width:28px;height:24px;line-height:24px;border-radius:4px;font-size:12px;font-weight:700;background:#'+gradeHex_(v)+';color:#fff">'+v+'</span></td>';
+    }).join('');
+    var dataStr=reg.data?String(reg.data).substring(0,10):'—';
+    return '<tr class="hist-row" onclick="toggleHistRow(\''+esc(actKey)+'\')" style="cursor:pointer">'+
+      '<td style="font-weight:600">'+esc(reg.activitat||'—')+'</td>'+
+      '<td style="white-space:nowrap;font-size:12px;color:var(--muted)">'+esc(dataStr)+'</td>'+
+      '<td style="font-size:12px">'+esc(reg.moduleNom||reg.moduleCodi)+'</td>'+
+      ccCells+
+    '</tr>'+
+    '<tr id="'+actKey+'_detail" style="display:none"><td colspan="'+(3+CAPS.length)+'" style="padding:0">'+
+      buildHistDetail_(reg)+
+    '</td></tr>';
+  }).join('');
+  $('histBody').innerHTML=
+    '<div class="panel" style="padding:0;overflow:auto">'+
+    '<table style="width:100%"><thead><tr>'+
+      '<th>Activitat</th><th>Data</th><th>Mòdul</th>'+thCC+
+    '</tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function gradeHex_(n){
+  if(n===null||n===undefined||n==='NA') return 'D9D9D9';
+  var v=Number(n);
+  if(isNaN(v)) return 'D9D9D9';
+  if(v<=2) return 'E25563';
+  if(v<=5) return 'E0A23C';
+  if(v<=8) return '4F8EF7';
+  return '3FB27F';
+}
+function buildHistDetail_(reg){
+  if(!reg.inds||!reg.inds.length) return '<div class="empty" style="padding:12px">Sense indicadors.</div>';
+  var byCap={};
+  reg.inds.forEach(function(ind){
+    if(!byCap[ind.cap]) byCap[ind.cap]=[];
+    byCap[ind.cap].push(ind);
+  });
+  var sections=CAPS.filter(function(c){ return byCap[c]&&byCap[c].length; }).map(function(c){
+    var indsHtml=byCap[c].map(function(ind){
+      var hex=gradeHex_(ind.grade);
+      var gradeLabel=(ind.grade==='NA')?'NA':(ind.grade!==null&&ind.grade!==undefined?String(ind.grade):'—');
+      return '<div style="display:flex;align-items:flex-start;gap:8px;padding:4px 0">'+
+        '<span style="display:inline-block;min-width:28px;height:22px;line-height:22px;text-align:center;border-radius:4px;font-size:11px;font-weight:700;background:#'+hex+';color:#fff;flex-shrink:0">'+esc(gradeLabel)+'</span>'+
+        '<span style="font-size:12px;color:var(--text);line-height:1.4"><b class="mono">'+esc(ind.codi)+'</b> '+esc(ind.text)+'</span>'+
+      '</div>';
+    }).join('');
+    return '<div style="margin-bottom:8px">'+
+      '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#333;background:'+CAP_BG[c]+';padding:3px 8px;border-radius:4px;display:inline-block;margin-bottom:4px">'+esc(CAP_ABBR[c])+' · '+esc(CAP_NOMS[c])+'</div>'+
+      indsHtml+
+    '</div>';
+  }).join('');
+  return '<div style="padding:12px 16px;background:var(--surface2,var(--panel));">'+sections+'</div>';
+}
+function toggleHistRow(key){
+  var el=$(key+'_detail');
+  if(!el) return;
+  el.style.display=(el.style.display==='none')?'table-row':'none';
+}
+function setHistFilter(k,v){ _historialFilters[k]=v; paintHistorial(); }
 
 /* ====================== RADAR ====================== */
 function drawRadar(canvas, values, color){
