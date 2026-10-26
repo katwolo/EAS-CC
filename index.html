@@ -1625,7 +1625,7 @@ function buildHistDetail_(reg){
       var hex=gradeHex_(ind.grade);
       var gradeLabel=(ind.grade==='NA')?'NA':(ind.grade!==null&&ind.grade!==undefined?String(ind.grade):'—');
       return '<div style="display:flex;align-items:flex-start;gap:8px;padding:4px 0">'+
-        '<span style="display:inline-block;min-width:28px;height:22px;line-height:22px;text-align:center;border-radius:4px;font-size:11px;font-weight:700;background:#'+hex+';color:#fff;flex-shrink:0">'+esc(gradeLabel)+'</span>'+
+        '<span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:#'+hex+';flex-shrink:0;margin-top:3px" title="'+esc(gradeLabel)+'"></span>'+
         '<span style="font-size:12px;color:var(--text);line-height:1.4"><b class="mono">'+esc(ind.codi)+'</b> '+esc(ind.text)+'</span>'+
       '</div>';
     }).join('');
