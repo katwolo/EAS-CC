@@ -1390,9 +1390,9 @@ function getAlumneHistorial_(p){
       var indInfos=[];
       try{
         var sortedInds=sortInds_(getActivityIndicators_({activitat:b.activitat,moduleCodi:codi}).indicators);
-        indInfos=sortedInds.map(function(ind){ return {codi:ind.codi,text:ind.text,cap:ind.capacitatId||capOf_(ind.codi)}; });
+        indInfos=sortedInds.map(function(ind){ return {codi:ind.codi,text:ind.text,cap:ind.capacitatId||capOf_(ind.codi),paraules:ind.paraules||''}; });
       }catch(e){
-        indInfos=b.inds.map(function(ind){ return {codi:ind.text||'?',text:ind.text||'',cap:ind.capId||''}; });
+        indInfos=b.inds.map(function(ind){ return {codi:ind.text||'?',text:ind.text||'',cap:ind.capId||'',paraules:''}; });
       }
       var ccAcc={};
       indInfos.forEach(function(ind,i){
@@ -1406,9 +1406,16 @@ function getAlumneHistorial_(p){
       var inds=indInfos.map(function(ind,i){
         var v=i<arr.length?arr[i]:null; var grade=null;
         if(v!==''&&v!=null){ if(String(v).toUpperCase()==='NA') grade='NA'; else{ var n=Number(v); if(!isNaN(n)) grade=n; } }
-        return {codi:ind.codi,text:ind.text,cap:ind.cap,grade:grade};
+        return {codi:ind.codi,text:ind.text,cap:ind.cap,grade:grade,paraules:ind.paraules||''};
       }).filter(function(x){return x.grade!==null;});
-      registres.push({moduleCodi:codi,moduleNom:modIdx[codi].nom,activitat:b.activitat,data:b.data,projNum:b.projNum,ccMeans:ccMeans,inds:inds});
+      var seen={}, hashtags=[];
+      indInfos.forEach(function(ind){
+        String(ind.paraules||'').trim().split(/[\s,]+/).forEach(function(w){
+          var t=w.replace(/^#+/,'').trim(); if(!t) return;
+          var key=t.toLowerCase(); if(!seen[key]){ seen[key]=true; hashtags.push('#'+t); }
+        });
+      });
+      registres.push({moduleCodi:codi,moduleNom:modIdx[codi].nom,activitat:b.activitat,data:b.data,projNum:b.projNum,ccMeans:ccMeans,inds:inds,hashtags:hashtags.slice(0,3)});
     });
   });
   registres.sort(function(a,b){return String(b.data).localeCompare(String(a.data));});

@@ -241,7 +241,7 @@ var state = { user:null, device:'pc', theme:'dark', view:'inici',
 
 var CAPS=['c1','c2','c3','c4','c5','c6','c7'];
 var CAP_NOMS={c1:'Organització',c2:'Iniciativa',c3:'Responsabilitat',c4:'Autonomia',c5:'Treball equip',c6:'Rel. interpersonals',c7:'Resolució'};
-var CAP_ABBR={c1:'Org',c2:'Ini',c3:'Resp',c4:'Aut',c5:'Eq',c6:'Rel',c7:'Prob'};
+var CAP_ABBR={c1:'Org',c2:'Ini',c3:'Resp',c4:'Aut',c5:'Eq',c6:'Rel',c7:'Resol'};
 var CAP_BG={c1:'#B4A7D6',c2:'#FFE599',c3:'#A4C2F4',c4:'#B6D7A8',c5:'#A2C4C9',c6:'#F9CB9C',c7:'#EA9999'};
 
 function $(id){return document.getElementById(id);}
@@ -490,7 +490,7 @@ async function renderAlumneResum(){
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error carregant dades.');
   var d=r.data;
   var capNoms=d.capNoms||CAP_NOMS;
-  var capHead=CAPS.map(function(cap){return '<th class="cc" style="background:'+CAP_BG[cap]+';color:#333" title="'+esc(capNoms[cap]||cap)+'">'+esc(CAP_ABBR[cap])+'</th>';}).join('');
+  var capHead=CAPS.map(function(cap){return '<th class="cc" title="'+esc(capNoms[cap]||cap)+'">'+esc(CAP_ABBR[cap])+'</th>';}).join('');
   var nc=CAPS.length+3; // columnes totals (codi + nom + 7 CC + nota)
 
   function sepRow(label){
@@ -1593,11 +1593,14 @@ function paintHistorial(){
     var ccCells=CAPS.map(function(c){
       var v=reg.ccMeans[c];
       if(v===null||v===undefined) return '<td style="text-align:center;color:var(--muted)">—</td>';
-      return '<td style="text-align:center"><span style="display:inline-block;width:20px;height:20px;border-radius:4px;background:#'+gradeHex_(v)+'" title="'+v+'"></span></td>';
+      return '<td style="text-align:center"><span style="display:inline-block;width:20px;height:20px;border-radius:4px;background:#'+gradeHex_(v)+'"></span></td>';
     }).join('');
     var dataStr=reg.data?String(reg.data).substring(0,10):'—';
+    var tagHtml=((reg.hashtags||[]).length)?'<div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:3px">'+
+      (reg.hashtags||[]).map(function(t){return '<span style="font-size:10px;color:var(--accent);font-weight:500">'+esc(t)+'</span>';}).join('')+
+      '</div>':'';
     return '<tr class="hist-row" onclick="toggleHistRow(\''+esc(actKey)+'\')" style="cursor:pointer">'+
-      '<td style="font-weight:600">'+esc(reg.activitat||'—')+'</td>'+
+      '<td style="font-weight:600">'+esc(reg.activitat||'—')+tagHtml+'</td>'+
       '<td style="white-space:nowrap;font-size:12px;color:var(--muted)">'+esc(dataStr)+'</td>'+
       '<td style="font-size:12px">'+esc(reg.moduleNom||reg.moduleCodi)+'</td>'+
       ccCells+
@@ -1621,6 +1624,11 @@ function gradeHex_(n){
   if(v<=8) return '4F8EF7';
   return '3FB27F';
 }
+function normHashtag_(s){
+  return String(s||'').trim().split(/[\s,]+/).filter(Boolean).map(function(w){
+    return w.charAt(0)==='#'?w:'#'+w;
+  }).join(' ');
+}
 function buildHistDetail_(reg){
   if(!reg.inds||!reg.inds.length) return '<div class="empty" style="padding:12px">Sense indicadors.</div>';
   var byCap={};
@@ -1632,9 +1640,10 @@ function buildHistDetail_(reg){
     var indsHtml=byCap[c].map(function(ind){
       var hex=gradeHex_(ind.grade);
       var gradeLabel=(ind.grade==='NA')?'NA':(ind.grade!==null&&ind.grade!==undefined?String(ind.grade):'—');
+      var tagInline=ind.paraules?'<span style="font-size:10px;color:var(--accent);font-weight:500;margin-left:4px">'+esc(normHashtag_(ind.paraules))+'</span>':'';
       return '<div style="display:flex;align-items:flex-start;gap:8px;padding:4px 0">'+
-        '<span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:#'+hex+';flex-shrink:0;margin-top:3px" title="'+esc(gradeLabel)+'"></span>'+
-        '<span style="font-size:12px;color:var(--text);line-height:1.4"><b class="mono">'+esc(ind.codi)+'</b> '+esc(ind.text)+'</span>'+
+        '<span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:#'+hex+';flex-shrink:0;margin-top:3px"></span>'+
+        '<span style="font-size:12px;color:var(--text);line-height:1.4"><b class="mono">'+esc(ind.codi)+'</b> '+esc(ind.text)+tagInline+'</span>'+
       '</div>';
     }).join('');
     return '<div style="margin-bottom:8px">'+
@@ -1662,7 +1671,7 @@ function drawRadar(canvas, values, color, pointColors){
   function pt(i,r){var a=-Math.PI/2+i*2*Math.PI/N;return [cx+Math.cos(a)*r,cy+Math.sin(a)*r];}
   ctx.strokeStyle=gridC;[0.25,0.5,0.75,1].forEach(function(f){ctx.beginPath();for(var i=0;i<=N;i++){var p=pt(i%N,R*f);if(i===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);}ctx.stroke();});
   ctx.fillStyle='rgba(139,147,167,.95)';
-  for(var i=0;i<N;i++){var pe=pt(i,R),pl=pt(i,R+18);ctx.strokeStyle=axisC;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(pe[0],pe[1]);ctx.stroke();ctx.fillText(CAPS[i].toUpperCase(),pl[0],pl[1]);}
+  for(var i=0;i<N;i++){var pe=pt(i,R),pl=pt(i,R+18);ctx.strokeStyle=axisC;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(pe[0],pe[1]);ctx.stroke();ctx.fillText(CAP_ABBR[CAPS[i]]||CAPS[i].toUpperCase(),pl[0],pl[1]);}
   ctx.beginPath();for(var j=0;j<=N;j++){var idx=j%N;var v=Math.max(0,Math.min(max,values[idx]||0));var p=pt(idx,R*v/max);if(j===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1]);}ctx.closePath();
   ctx.fillStyle=hexA(color,.20);ctx.fill();ctx.strokeStyle=color;ctx.lineWidth=2;ctx.stroke();
   for(var k=0;k<N;k++){var v2=Math.max(0,Math.min(max,values[k]||0));var p2=pt(k,R*v2/max);ctx.beginPath();ctx.arc(p2[0],p2[1],5,0,2*Math.PI);ctx.fillStyle=(pointColors&&pointColors[k])||color;ctx.fill();}
