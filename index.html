@@ -1689,13 +1689,22 @@ var EX_MODS=[
   {id:"mg-esports",tipus:"mg",curs:2,codi:"MG Esports",nom:"Ensenyament i activitats d'equip i d'implements",d:"Mòdul globalitzat de segon curs, organitzat en tres projectes.",mps:["MP1143","MP1140","MP1141"]},
   {id:"ianimacio",tipus:"mg",curs:2,codi:"MG IAnimació",nom:"Inclusió i animació turística",d:"Mòdul globalitzat de segon curs, organitzat en quatre projectes.",mps:["MP1138","MP1142"]},
 ];
-function renderExemples(){
+async function renderExemples(){
+  if(state.user&&state.user.rol==='admin') return renderExemplesAdmin();
+  $('content').innerHTML='<div class="empty">Carregant…</div>';
+  var r=await call('getExemplesConfig',{});
+  var cfg=r.ok?r.config:{};
+  var mods=EX_MODS.filter(function(m){ return cfg[m.id]!==false; });
+  paintExemplesCards(mods);
+}
+function paintExemplesCards(mods){
   $('content').innerHTML=
     '<div style="padding:24px 0 0">'
     +'<h2 style="font-size:18px;margin-bottom:4px">Exemples pràctics</h2>'
     +'<p style="color:var(--muted);font-size:13.5px;margin-bottom:20px">Activitats de capacitats clau per mòdul. Clica un mòdul per veure les activitats i presentacions.</p>'
     +[1,2].map(function(curs){
-      var ms=EX_MODS.filter(function(m){return m.curs===curs;});
+      var ms=mods.filter(function(m){return m.curs===curs;});
+      if(!ms.length) return '';
       return '<div class="ex-course">'
         +'<div class="ex-course-h"><h3>'+(curs===1?'Primer':'Segon')+' curs</h3><span style="font-size:13px;color:var(--muted)">'+ms.length+' mòdul'+(ms.length>1?'s':'')+'</span></div>'
         +'<div class="ex-opts">'+ms.map(function(m){
@@ -1712,7 +1721,48 @@ function renderExemples(){
         }).join('')+'</div>'
         +'</div>';
     }).join('')
+    +(mods.length===0?'<div class="empty">Cap mòdul actiu. Un administrador pot activar-ne des d\'aquesta mateixa secció.</div>':'')
     +'</div>';
+}
+async function renderExemplesAdmin(){
+  $('content').innerHTML='<div class="empty">Carregant…</div>';
+  var r=await call('getExemplesConfig',{});
+  if(!r.ok) return showError(r.error);
+  paintExemplesAdmin(r.config);
+}
+function paintExemplesAdmin(cfg){
+  $('content').innerHTML=
+    '<div style="padding:24px 0 0">'
+    +'<h2 style="font-size:18px;margin-bottom:4px">Exemples pràctics</h2>'
+    +'<p style="color:var(--muted);font-size:13.5px;margin-bottom:20px">Activa o desactiva els mòduls visibles per al professorat.</p>'
+    +'<div class="panel" style="max-width:520px">'
+    +EX_MODS.map(function(m,i){
+      var on=(cfg[m.id]!==false);
+      var border=(i<EX_MODS.length-1)?'border-bottom:1px solid var(--border)':'';
+      return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;'+border+'">'
+        +'<div>'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">'
+        +'<span style="font-family:var(--mono);font-size:13px;font-weight:600;color:'+(m.tipus==='mg'?'#a78bfa':'var(--accent-2)')+'">'+esc(m.codi)+'</span>'
+        +'<span style="font-size:10.5px;font-weight:600;text-transform:uppercase;padding:2px 7px;border-radius:5px;'+(m.tipus==='mg'?'background:rgba(167,139,250,.15);color:#a78bfa':'background:var(--accent-soft);color:var(--accent-2)')+'">'+esc(m.curs===1?'1r curs':'2n curs')+'</span>'
+        +'</div>'
+        +'<div style="font-size:14px;font-weight:500">'+esc(m.nom)+'</div>'
+        +'</div>'
+        +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0">'
+        +'<input type="checkbox" id="ex_'+m.id+'" '+(on?'checked':'')+' style="width:17px;height:17px;accent-color:var(--accent);cursor:pointer">'
+        +'<span style="font-size:13px;color:var(--muted)">Visible</span>'
+        +'</label>'
+        +'</div>';
+    }).join('')
+    +'</div>'
+    +'<div style="margin-top:16px"><button class="btn" onclick="saveExemplesAdmin()">Desar</button></div>'
+    +'</div>';
+}
+async function saveExemplesAdmin(){
+  var cfg={};
+  EX_MODS.forEach(function(m){ var el=$('ex_'+m.id); cfg[m.id]=el?el.checked:true; });
+  var r=await call('saveExemplesConfig',{config:cfg});
+  if(!r.ok) return showError(r.error);
+  toast('Configuració desada.');
 }
 function openExemples(id){
   var ov=$('exemOverlay');

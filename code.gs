@@ -130,6 +130,8 @@ function handleRequest(action, payload) {
       case 'editUser':              return { ok:true, done: editUser_(payload) };
       case 'getClassesConfig':      return { ok:true, config: readClassesConfig_() };
       case 'saveClassesConfig':     return { ok:true, done: saveClassesConfig_(payload) };
+      case 'getExemplesConfig':     return { ok:true, config: readExemplesConfig_() };
+      case 'saveExemplesConfig':    return { ok:true, done: saveExemplesConfig_(payload) };
       case 'getAlumneHistorial':    return { ok:true, data: getAlumneHistorial_(payload) };
       case 'resetPassword':         return { ok:true, done: resetPassword_(payload) };
       case 'changePassword':        return { ok:true, done: changePassword_(payload) };
@@ -1359,6 +1361,53 @@ function saveClassesConfig_(p){
     var val=(cfg[c]===true)?'si':'no';
     if(rowMap[c]){ sh.getRange(rowMap[c],hc).setValue(val); }
     else{ var lr=sh.getLastRow(); sh.getRange(lr+1,cc).setValue(c); sh.getRange(lr+1,hc).setValue(val); rowMap[c]=lr+1; }
+  });
+  return true;
+}
+
+/* ============== EXEMPLES PRÀCTICS CONFIG ============== */
+function readExemplesConfig_(){
+  var FIXED=['lleure','mp1139','mg-esports','ianimacio'];
+  var ss=getSS_();
+  var sh=ss.getSheetByName('Exemples');
+  if(!sh){
+    sh=ss.insertSheet('Exemples');
+    sh.getRange(1,1,1,2).setValues([['id','actiu']]).setFontWeight('bold');
+    FIXED.forEach(function(id,i){ sh.getRange(2+i,1,1,2).setValues([[id,'si']]); });
+  }
+  var v=sh.getDataRange().getValues();
+  var hdrs=v[0].map(function(h){return String(h).trim();});
+  var ic=hdrs.indexOf('id'), ac=hdrs.indexOf('actiu');
+  var map={};
+  FIXED.forEach(function(id){ map[id]=true; });
+  for(var i=1;i<v.length;i++){
+    var mid=String(v[i][ic>=0?ic:0]||'').trim();
+    if(mid) map[mid]=(String(v[i][ac>=0?ac:1]||'').trim().toLowerCase()!=='no');
+  }
+  return map;
+}
+function saveExemplesConfig_(p){
+  var FIXED=['lleure','mp1139','mg-esports','ianimacio'];
+  var ss=getSS_();
+  var sh=ss.getSheetByName('Exemples');
+  if(!sh){
+    sh=ss.insertSheet('Exemples');
+    sh.getRange(1,1,1,2).setValues([['id','actiu']]).setFontWeight('bold');
+  }
+  var v=sh.getDataRange().getValues();
+  var hdrs=v[0].map(function(h){return String(h).trim();});
+  var ic=hdrs.indexOf('id')+1, ac=hdrs.indexOf('actiu')+1;
+  if(ic<=0){ sh.getRange(1,1).setValue('id'); ic=1; }
+  if(ac<=0){ sh.getRange(1,2).setValue('actiu'); ac=2; }
+  var rowMap={};
+  for(var i=1;i<v.length;i++){
+    var mid=String(v[i][ic-1]||'').trim(); if(mid) rowMap[mid]=i+1;
+  }
+  var cfg=p.config||{};
+  FIXED.forEach(function(id){
+    var val=(cfg[id]===false)?'no':'si';
+    if(rowMap[id]){ sh.getRange(rowMap[id],ac).setValue(val); }
+    else{ var lr=sh.getLastRow(); sh.getRange(lr+1,ic).setValue(id); sh.getRange(lr+1,ac).setValue(val); rowMap[id]=lr+1; }
   });
   return true;
 }
