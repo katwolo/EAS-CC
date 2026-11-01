@@ -130,7 +130,7 @@ function handleRequest(action, payload) {
       case 'editUser':              return { ok:true, done: editUser_(payload) };
       case 'getClassesConfig':      return { ok:true, config: readClassesConfig_() };
       case 'saveClassesConfig':     return { ok:true, done: saveClassesConfig_(payload) };
-      case 'getExemplesConfig':     return { ok:true, config: readExemplesConfig_() };
+      case 'getExemplesConfig':     var _ec=readExemplesConfig_(); return { ok:true, config: _ec.config, urls: _ec.urls };
       case 'saveExemplesConfig':    return { ok:true, done: saveExemplesConfig_(payload) };
       case 'getAlumneHistorial':    return { ok:true, data: getAlumneHistorial_(payload) };
       case 'resetPassword':         return { ok:true, done: resetPassword_(payload) };
@@ -1377,14 +1377,17 @@ function readExemplesConfig_(){
   }
   var v=sh.getDataRange().getValues();
   var hdrs=v[0].map(function(h){return String(h).trim();});
-  var ic=hdrs.indexOf('id'), ac=hdrs.indexOf('actiu');
-  var map={};
+  var ic=hdrs.indexOf('id'), ac=hdrs.indexOf('actiu'), uc=hdrs.indexOf('url');
+  var map={}, urls={};
   FIXED.forEach(function(id){ map[id]=true; });
   for(var i=1;i<v.length;i++){
     var mid=String(v[i][ic>=0?ic:0]||'').trim();
-    if(mid) map[mid]=(String(v[i][ac>=0?ac:1]||'').trim().toLowerCase()!=='no');
+    if(mid){
+      map[mid]=(String(v[i][ac>=0?ac:1]||'').trim().toLowerCase()!=='no');
+      if(uc>=0){ var u=String(v[i][uc]||'').trim(); if(u) urls[mid]=u; }
+    }
   }
-  return map;
+  return {config:map, urls:urls};
 }
 function saveExemplesConfig_(p){
   var FIXED=['lleure','mp1139','mg-esports','ianimacio'];

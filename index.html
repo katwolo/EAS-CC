@@ -1689,11 +1689,13 @@ var EX_MODS=[
   {id:"mg-esports",tipus:"mg",curs:2,codi:"MG Esports",nom:"Ensenyament i activitats d'equip i d'implements",d:"Mòdul globalitzat de segon curs, organitzat en tres projectes.",mps:["MP1143","MP1140","MP1141"]},
   {id:"ianimacio",tipus:"mg",curs:2,codi:"MG IAnimació",nom:"Inclusió i animació turística",d:"Mòdul globalitzat de segon curs, organitzat en quatre projectes.",mps:["MP1138","MP1142"]},
 ];
+var _exemUrls={};
 async function renderExemples(){
   if(state.user&&state.user.rol==='admin') return renderExemplesAdmin();
   $('content').innerHTML='<div class="empty">Carregant…</div>';
   var r=await call('getExemplesConfig',{});
   var cfg=r.ok?r.config:{};
+  _exemUrls=r.ok&&r.urls?r.urls:{};
   var mods=EX_MODS.filter(function(m){ return cfg[m.id]!==false; });
   paintExemplesCards(mods);
 }
@@ -1766,10 +1768,14 @@ async function saveExemplesAdmin(){
 }
 function openExemples(id){
   var ov=$('exemOverlay');
-  var base=location.hostname.indexOf('github.io')>=0
-    ? (location.origin+location.pathname.replace(/\/[^\/]*$/,''))
-    : 'https://katwolo.github.io/EAS-CC';
-  ov.querySelector('iframe').src=base+'/exemples/index.html#'+id;
+  var src=_exemUrls[id]||null;
+  if(!src){
+    var base=location.hostname.indexOf('github.io')>=0
+      ? (location.origin+location.pathname.replace(/\/[^\/]*$/,''))
+      : 'https://katwolo.github.io/EAS-CC';
+    src=base+'/exemples/index.html#'+id;
+  }
+  ov.querySelector('iframe').src=src;
   ov.classList.add('show');
 }
 function closeExemples(){
