@@ -339,7 +339,7 @@ function enterApp(){
 }
 function buildNav(){
   if(state.user&&state.user.rol==='admin'){
-    $('nav').innerHTML=[['usuaris',"Gestió d'usuaris"],['actcataleg',"Gestió d'activitats"]].map(function(n){
+    $('nav').innerHTML=[['usuaris',"Gestió d'usuaris"],['actcataleg',"Gestió d'activitats"],['exemples',"Exemples pràctics"]].map(function(n){
       return '<button data-v="'+n[0]+'" onclick="go(\''+n[0]+'\')">'+n[1]+'</button>';
     }).join('');
     return;
