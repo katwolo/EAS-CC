@@ -175,6 +175,27 @@
   .modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);width:100%;max-width:460px;padding:24px;box-shadow:var(--shadow);max-height:85vh;overflow-y:auto}
   .modal .actions{display:flex;gap:10px;margin-top:20px}.modal .actions .btn{margin:0}
   @media(max-width:520px){.overlay{padding:10px}.modal{padding:16px;border-radius:10px}}
+  /* ---- Exemples pràctics ---- */
+  .ex-opts{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+  .ex-opt{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:left;color:var(--text);display:flex;flex-direction:column;gap:6px;transition:.14s;cursor:pointer;width:100%;font-family:inherit}
+  .ex-opt:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow)}
+  .ex-opt .big{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--accent-2);line-height:1.1}
+  .ex-opt.mg .big{color:#a78bfa}
+  .ex-opt .t{font-size:15px;font-weight:600}
+  .ex-opt .d{font-size:12.5px;color:var(--muted)}
+  .ex-opt .foot{margin-top:auto;padding-top:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)}
+  .ex-opt .foot b{font-family:var(--mono);color:var(--text);font-weight:600}
+  .ex-kind{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:3px 8px;border-radius:6px;white-space:nowrap}
+  .ex-kind.mp{background:var(--accent-soft);color:var(--accent-2)}
+  .ex-kind.mg{background:rgba(167,139,250,.15);color:#a78bfa}
+  .ex-mps{display:flex;flex-wrap:wrap;gap:4px}
+  .ex-mps span{font-family:var(--mono);font-size:11px;background:var(--surface-3);border-radius:5px;padding:1px 6px;color:var(--muted)}
+  .ex-course{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+  .ex-course-h{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}
+  .ex-course-h h3{font-size:15px;font-weight:600;margin:0}
+  #exemOverlay{position:fixed;inset:0;z-index:300;display:none;background:#000}
+  #exemOverlay.show{display:block}
+  #exemOverlay iframe{width:100%;height:100%;border:0;display:block}
 </style>
 </head>
 <body>
@@ -338,7 +359,7 @@ function buildNav(){
     {label:'Inici', view:'inici'},
     {label:'Evidències', children:[{view:'registrar',label:'Enregistrar'},{view:'evidencies',label:'Historial'}]},
     {label:'Gestió Alumnat', children:[{view:'resum',label:'Resum MP'},{view:'alumnes',label:'Alumnat'}]},
-    {label:'Gestió MP', children:[{view:'activitats',label:'Activitats'},{view:'projectes',label:'Projectes'}]}
+    {label:'Gestió MP', children:[{view:'activitats',label:'Activitats'},{view:'projectes',label:'Projectes'},{view:'exemples',label:'Exemples pràctics'}]}
   ];
   $('nav').innerHTML=groups.map(function(g){
     if(!g.children) return '<button data-v="'+g.view+'" onclick="go(\''+g.view+'\')">'+g.label+'</button>';
@@ -375,6 +396,7 @@ function go(view){
   if(view==='alumnes') return renderAlumnes();
   if(view==='alumneresum') return renderAlumneResum();
   if(view==='historial') return renderHistorial();
+  if(view==='exemples') return renderExemples();
 }
 
 /* ---------- selectors compartits (classe + mòdul) ---------- */
@@ -1660,6 +1682,54 @@ function toggleHistRow(key){
 }
 function setHistFilter(k,v){ _historialFilters[k]=v; paintHistorial(); }
 
+/* ====================== EXEMPLES PRÀCTICS ====================== */
+var EX_MODS=[
+  {id:"lleure",tipus:"mg",curs:1,codi:"MG Lleure",nom:"Direcció de lleure",d:"Mòdul globalitzat de primer curs.",mps:[]},
+  {id:"mp1139",tipus:"mp",curs:1,codi:"MP1139",nom:"Esports individuals",d:"Mòdul individual de primer curs.",mps:[]},
+  {id:"mg-esports",tipus:"mg",curs:2,codi:"MG Esports",nom:"Ensenyament i activitats d'equip i d'implements",d:"Mòdul globalitzat de segon curs, organitzat en tres projectes.",mps:["MP1143","MP1140","MP1141"]},
+  {id:"ianimacio",tipus:"mg",curs:2,codi:"MG IAnimació",nom:"Inclusió i animació turística",d:"Mòdul globalitzat de segon curs, organitzat en quatre projectes.",mps:["MP1138","MP1142"]},
+];
+function renderExemples(){
+  $('content').innerHTML=
+    '<div style="padding:24px 0 0">'
+    +'<h2 style="font-size:18px;margin-bottom:4px">Exemples pràctics</h2>'
+    +'<p style="color:var(--muted);font-size:13.5px;margin-bottom:20px">Activitats de capacitats clau per mòdul. Clica un mòdul per veure les activitats i presentacions.</p>'
+    +[1,2].map(function(curs){
+      var ms=EX_MODS.filter(function(m){return m.curs===curs;});
+      return '<div class="ex-course">'
+        +'<div class="ex-course-h"><h3>'+(curs===1?'Primer':'Segon')+' curs</h3><span style="font-size:13px;color:var(--muted)">'+ms.length+' mòdul'+(ms.length>1?'s':'')+'</span></div>'
+        +'<div class="ex-opts">'+ms.map(function(m){
+          return '<button class="ex-opt '+m.tipus+'" onclick="openExemples(\''+m.id+'\')">'
+            +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
+            +'<span class="big">'+esc(m.codi)+'</span>'
+            +'<span class="ex-kind '+m.tipus+'">'+(m.tipus==='mg'?'Globalitzat':'Individual')+'</span>'
+            +'</div>'
+            +'<span class="t">'+esc(m.nom)+'</span>'
+            +'<span class="d">'+esc(m.d)+'</span>'
+            +(m.mps.length?'<div class="ex-mps">'+m.mps.map(function(x){return '<span>'+esc(x)+'</span>';}).join('')+'</div>':'')
+            +'<div class="foot"><span>Obre →</span></div>'
+            +'</button>';
+        }).join('')+'</div>'
+        +'</div>';
+    }).join('')
+    +'</div>';
+}
+function openExemples(id){
+  var ov=$('exemOverlay');
+  var base=location.hostname.indexOf('github.io')>=0
+    ? (location.origin+location.pathname.replace(/\/[^\/]*$/,''))
+    : 'https://katwolo.github.io/EAS-CC';
+  ov.querySelector('iframe').src=base+'/exemples/index.html#'+id;
+  ov.classList.add('show');
+}
+function closeExemples(){
+  var ov=$('exemOverlay');
+  ov.classList.remove('show');
+  ov.querySelector('iframe').src='about:blank';
+}
+window.addEventListener('message',function(e){
+  if(e.data&&e.data.type==='exemClose') closeExemples();
+});
 /* ====================== RADAR ====================== */
 function drawRadar(canvas, values, color, pointColors){
   if(!canvas) return; var ctx=canvas.getContext('2d');
@@ -1680,5 +1750,6 @@ function hexA(hex,a){hex=hex.replace('#','');var r=parseInt(hex.substr(0,2),16),
 initTheme();
 </script>
 <button id="helpFab" onclick="window.open('https://claude.ai/code/artifact/2725f0fa-700f-43f9-9baa-dcb929d31167','_blank')" title="Guia d'ús per al professorat" aria-label="Ajuda">?</button>
+<div id="exemOverlay"><iframe title="Exemples pràctics" allow="fullscreen"></iframe></div>
 </body>
 </html>
