@@ -1367,7 +1367,7 @@ function saveClassesConfig_(p){
 
 /* ============== EXEMPLES PRÀCTICS CONFIG ============== */
 function readExemplesConfig_(){
-  var FIXED=['lleure','mp1139','mp1136','mp0179','mg-esports','ianimacio'];
+  var FIXED=['lleure','mp1139','mp1136','mp0179','mp1709','mg-esports','ianimacio'];
   var ss=getSS_();
   var sh=ss.getSheetByName('Exemples');
   if(!sh){
@@ -1390,7 +1390,7 @@ function readExemplesConfig_(){
   return {config:map, urls:urls};
 }
 function saveExemplesConfig_(p){
-  var FIXED=['lleure','mp1139','mp1136','mp0179','mg-esports','ianimacio'];
+  var FIXED=['lleure','mp1139','mp1136','mp0179','mp1709','mg-esports','ianimacio'];
   var ss=getSS_();
   var sh=ss.getSheetByName('Exemples');
   if(!sh){
