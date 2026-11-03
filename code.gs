@@ -60,19 +60,6 @@ function readMainCached_(k) {
 }
 function bustMain_(k) { bust_('sh_'+k); }
 
-/* ====================== KEEP-WARM ====================== */
-function keepWarm_() {}
-function installKeepWarmTrigger() {
-  ScriptApp.getProjectTriggers().forEach(function(t){
-    if(t.getHandlerFunction()==='keepWarm_') ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger('keepWarm_').timeBased().everyMinutes(5).create();
-}
-function removeKeepWarmTrigger() {
-  ScriptApp.getProjectTriggers().forEach(function(t){
-    if(t.getHandlerFunction()==='keepWarm_') ScriptApp.deleteTrigger(t);
-  });
-}
 
 /* ====================== ENTRADA + ROUTER ====================== */
 function doGet(e) {
