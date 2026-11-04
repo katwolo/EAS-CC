@@ -445,7 +445,7 @@ window.addEventListener('message',function(e){
 
 function exportPPT(){
   if(!A)return;
-  if(typeof PptxGenJS==='undefined'){toast('Carregant la llibreria PPT…');return;}
+  if(typeof PptxGenJS==='undefined'){alert('La llibreria PPT no s\'ha carregat. Recarrega la pàgina i torna-ho a intentar.');return;}
   const pptx=new PptxGenJS();
   pptx.layout='LAYOUT_16x9';pptx.title=A.title;
   const W=10,H=5.625;
@@ -536,10 +536,10 @@ function exportPPT(){
     }
     if(s.notes)sl.addNotes(s.notes);
   }
-  pptx.writeFile({fileName:(A.code||A.id)+' - '+A.title+'.pptx'}).then(()=>toast('PowerPoint descarregat!'));
+  pptx.writeFile({fileName:(A.code||A.id)+' - '+A.title+'.pptx'});
 }
 initExemples();
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundled.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundled.js"></script>
 </body>
 </html>
