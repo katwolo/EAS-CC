@@ -1359,12 +1359,12 @@ function readExemplesConfig_(){
   var sh=ss.getSheetByName('Exemples');
   if(!sh){
     sh=ss.insertSheet('Exemples');
-    sh.getRange(1,1,1,4).setValues([['id','actiu','url','ppt']]).setFontWeight('bold');
+    sh.getRange(1,1,1,12).setValues([['id','actiu','url','A1','A2','A3','A4','A5','A6','A7','A8','A9']]).setFontWeight('bold');
     FIXED.forEach(function(id,i){ sh.getRange(2+i,1,1,2).setValues([[id,'si']]); });
   }
   var v=sh.getDataRange().getValues();
   var hdrs=v[0].map(function(h){return String(h).trim();});
-  var ic=hdrs.indexOf('id'), ac=hdrs.indexOf('actiu'), uc=hdrs.indexOf('url'), pc=hdrs.indexOf('ppt');
+  var ic=hdrs.indexOf('id'), ac=hdrs.indexOf('actiu'), uc=hdrs.indexOf('url');
   var map={}, urls={}, pptUrls={};
   FIXED.forEach(function(id){ map[id]=true; });
   for(var i=1;i<v.length;i++){
@@ -1372,7 +1372,12 @@ function readExemplesConfig_(){
     if(mid){
       map[mid]=(String(v[i][ac>=0?ac:1]||'').trim().toLowerCase()!=='no');
       if(uc>=0){ var u=String(v[i][uc]||'').trim(); if(u) urls[mid]=u; }
-      if(pc>=0){ var pu=String(v[i][pc]||'').trim(); if(pu) pptUrls[mid]=pu; }
+      var actMap={};
+      for(var j=1;j<=9;j++){
+        var col=hdrs.indexOf('A'+j);
+        if(col>=0){ var pu=String(v[i][col]||'').trim(); if(pu) actMap['a'+j]=pu; }
+      }
+      if(Object.keys(actMap).length) pptUrls[mid]=actMap;
     }
   }
   return {config:map, urls:urls, pptUrls:pptUrls};

@@ -412,8 +412,9 @@ function mount(d){D=d;document.getElementById('hlogo').src=d.logo;MV.querySelect
 
 function exportPPT(){
   if(!A)return;
-  const url=window._modPptUrl||'';
-  if(!url){alert('No hi ha cap arxiu configurat per a aquest mòdul.');return;}
+  const ppts=window._modPpts||{};
+  const url=ppts[A.id]||'';
+  if(!url){alert('No hi ha cap arxiu configurat per a aquesta activitat.');return;}
   window.open(url,'_blank');
 }
 function _exportPPT_unused(){
@@ -524,8 +525,8 @@ function closeOverlay(){
 }
 function initExemples(){
   const params=new URLSearchParams(location.search);
-  const pptParam=params.get('ppt');
-  if(pptParam) window._modPptUrl=pptParam;
+  const pptsParam=params.get('ppts');
+  if(pptsParam){try{window._modPpts=JSON.parse(pptsParam);}catch(e){}}
   const h=location.hash.slice(1)||location.search.slice(4);
   const modId=h.split('&')[0];
   const mv=document.getElementById('modview');

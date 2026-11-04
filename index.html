@@ -1780,8 +1780,8 @@ function openExemples(id){
       : 'https://katwolo.github.io/EAS-CC';
     src=base+'/activitats CC/index.html#'+id;
   }
-  var pptUrl=_pptUrls[id]||'';
-  if(pptUrl) src+=(src.indexOf('?')>=0?'&':'?')+'ppt='+encodeURIComponent(pptUrl);
+  var pptMap=_pptUrls[id]||null;
+  if(pptMap&&Object.keys(pptMap).length) src+=(src.indexOf('?')>=0?'&':'?')+'ppts='+encodeURIComponent(JSON.stringify(pptMap));
   ov.querySelector('iframe').src=src;
   ov.classList.add('show');
   var fab=$('helpFab');if(fab)fab.style.display='none';
