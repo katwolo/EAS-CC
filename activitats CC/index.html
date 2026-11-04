@@ -409,39 +409,6 @@ let sx=null;document.getElementById('stagewrap').addEventListener('touchstart',e
 document.getElementById('stagewrap').addEventListener('touchend',e=>{if(sx==null)return;const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>50)go(dx<0?1:-1);sx=null;});
 
 function mount(d){D=d;document.getElementById('hlogo').src=d.logo;MV.querySelector('#home h1').textContent=d.meta.title;MV.querySelector('#home p.sub').textContent=d.meta.sub;home();build();MV.classList.remove('shownotes');document.getElementById('home').scrollTop=0;}
-return {mount,close:()=>{A=null;}};
-})();
-
-
-
-function closeOverlay(){
-  if(window.parent!==window){window.parent.postMessage({type:'exemClose'},'*');}
-  else{history.back();}
-}
-function initExemples(){
-  const h=location.hash.slice(1)||location.search.slice(4);
-  const mv=document.getElementById('modview');
-  mv.removeAttribute('hidden');
-  const m=MODS.find(x=>x.id===h);
-  if(m&&DECKS[m.id]){Deck.mount(DECKS[m.id]);}
-  else{
-    const first=MODS.find(x=>DECKS[x.id]);
-    if(first) Deck.mount(DECKS[first.id]);
-  }
-}
-window.addEventListener('keydown',function(e){
-  if(e.key==='Escape'&&!document.fullscreenElement){
-    const deck=document.getElementById('deck');
-    if(deck&&deck.style.display!=='none'){return;}
-    closeOverlay();
-  }
-});
-window.addEventListener('message',function(e){
-  if(e.data&&e.data.type==='exemOpen'){
-    const m=MODS.find(x=>x.id===e.data.id);
-    if(m&&DECKS[m.id]) Deck.mount(DECKS[m.id]);
-  }
-});
 
 function exportPPT(){
   if(!A)return;
@@ -538,6 +505,40 @@ function exportPPT(){
   }
   pptx.writeFile({fileName:(A.code||A.id)+' - '+A.title+'.pptx'});
 }
+return {mount,close:()=>{A=null;}};
+})();
+
+
+
+function closeOverlay(){
+  if(window.parent!==window){window.parent.postMessage({type:'exemClose'},'*');}
+  else{history.back();}
+}
+function initExemples(){
+  const h=location.hash.slice(1)||location.search.slice(4);
+  const mv=document.getElementById('modview');
+  mv.removeAttribute('hidden');
+  const m=MODS.find(x=>x.id===h);
+  if(m&&DECKS[m.id]){Deck.mount(DECKS[m.id]);}
+  else{
+    const first=MODS.find(x=>DECKS[x.id]);
+    if(first) Deck.mount(DECKS[first.id]);
+  }
+}
+window.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&!document.fullscreenElement){
+    const deck=document.getElementById('deck');
+    if(deck&&deck.style.display!=='none'){return;}
+    closeOverlay();
+  }
+});
+window.addEventListener('message',function(e){
+  if(e.data&&e.data.type==='exemOpen'){
+    const m=MODS.find(x=>x.id===e.data.id);
+    if(m&&DECKS[m.id]) Deck.mount(DECKS[m.id]);
+  }
+});
+
 initExemples();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundled.js"></script>
