@@ -411,8 +411,10 @@ document.getElementById('stagewrap').addEventListener('touchend',e=>{if(sx==null
 function mount(d){D=d;document.getElementById('hlogo').src=d.logo;MV.querySelector('#home h1').textContent=d.meta.title;MV.querySelector('#home p.sub').textContent=d.meta.sub;home();build();MV.classList.remove('shownotes');document.getElementById('home').scrollTop=0;}
 
 function exportPPT(){
-  if(!A)return;
+  if(!A){alert('DEBUG: A is null');return;}
+  alert('DEBUG: A='+A.title+', PptxGenJS='+typeof PptxGenJS);
   if(typeof PptxGenJS==='undefined'){alert('La llibreria PPT no s\'ha carregat. Recarrega la pàgina i torna-ho a intentar.');return;}
+  try{
   const pptx=new PptxGenJS();
   pptx.layout='LAYOUT_16x9';pptx.title=A.title;
   const W=10,H=5.625;
@@ -504,6 +506,7 @@ function exportPPT(){
     if(s.notes)sl.addNotes(s.notes);
   }
   pptx.writeFile({fileName:(A.code||A.id)+' - '+A.title+'.pptx'});
+  }catch(e){alert('Error PPT: '+e.message+'\n'+e.stack);}
 }
 return {mount,close:()=>{A=null;}};
 })();
