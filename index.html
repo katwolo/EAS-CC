@@ -1780,11 +1780,13 @@ function openExemples(id){
   }
   ov.querySelector('iframe').src=src;
   ov.classList.add('show');
+  var fab=$('helpFab');if(fab)fab.style.display='none';
 }
 function closeExemples(){
   var ov=$('exemOverlay');
   ov.classList.remove('show');
   ov.querySelector('iframe').src='about:blank';
+  var fab=$('helpFab');if(fab&&state.user&&state.user.rol!=='alumne')fab.style.display='flex';
 }
 window.addEventListener('message',function(e){
   if(e.data&&e.data.type==='exemClose') closeExemples();

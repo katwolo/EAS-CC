@@ -290,6 +290,7 @@ body{background:var(--bg)}
     <button id="bHome" title="Tornar a l'inici (Esc)"></button>
     <span class="t" id="bTitle"></span>
     <button id="bNotes" title="Notes del docent (N)"><span class="lab">Notes</span></button>
+    <button id="bPpt" title="Descarregar PowerPoint"><span class="lab">PPT</span></button>
     <button id="bFull" title="Pantalla completa (F)"></button>
     <button id="bPrev" title="Anterior (←)"></button><span class="num" id="bNum"></span><button id="bNext" title="Següent (→)"></button>
   </div>
@@ -337,7 +338,19 @@ if(G){const tg=document.createElement('button');tg.id='planbBtn';tg.type='button
   tg.onclick=()=>{const sec=ch.querySelector('.grp.alt');sec.hidden=!sec.hidden;tg.classList.toggle('on',!sec.hidden);tg.setAttribute('aria-expanded',String(!sec.hidden));lab();if(!sec.hidden)sec.scrollIntoView({behavior:'smooth',block:'start'});};}
 if(!D.acts.length)ch.innerHTML='<p class="noacts">Aquest mòdul encara no té activitats de capacitats clau carregades.</p>';
 }
-function open(k){A=D.acts[k];idx=0;MV.style.setProperty('--accent','#'+A.accent);MV.style.setProperty('--soft','#'+A.soft);
+function open(k){
+  const act=D.acts[k];
+  // "Què observarem" slides become teacher notes only
+  const slides=[];
+  for(let i=0;i<act.slides.length;i++){
+    const s=act.slides[i];
+    if(s.type==='cards'&&s.title&&/observarem/i.test(s.title)){
+      const extra='Incidiu en: '+s.cards.map(c=>c.t+' – '+c.d).join(' · ');
+      if(slides.length>0){const p=slides[slides.length-1];p.notes=(p.notes?p.notes+' | ':'')+extra;}
+    } else {slides.push(Object.assign({},s));}
+  }
+  A=Object.assign({},act,{slides});
+  idx=0;MV.style.setProperty('--accent','#'+A.accent);MV.style.setProperty('--soft','#'+A.soft);
   document.getElementById('home').style.display='none';document.getElementById('deck').style.display='flex';document.getElementById('bTitle').textContent=A.title;render();fit();}
 function home(){document.getElementById('deck').style.display='none';document.getElementById('home').style.display='flex';A=null;}
 const steps=()=>A.slides.filter(s=>s.type==='step');
@@ -383,6 +396,7 @@ window.addEventListener('resize',fit);
 const bt=(id,ic,f)=>{const b=document.getElementById(id);b.insertAdjacentHTML('afterbegin',I(ic));b.onclick=f;};
 bt('bHome','FaHome',home);bt('bPrev','FaChevronLeft',()=>go(-1));bt('bNext','FaChevronRight',()=>go(1));
 bt('bNotes','FaStickyNote',()=>{MV.classList.toggle('shownotes');fit();});
+bt('bPpt','FaFileDownload',exportPPT);
 bt('bFull','FaExpand',()=>{try{const p=document.fullscreenElement?document.exitFullscreen():(document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen());if(p&&p.catch)p.catch(()=>{});}catch(e){}});
 document.addEventListener('keydown',e=>{if(MV.hidden)return;if(!A){if(e.key==='Escape')location.hash='moduls';return;}
   if(['ArrowRight','PageDown'].includes(e.key)){go(1);e.preventDefault();}
@@ -428,7 +442,104 @@ window.addEventListener('message',function(e){
     if(m&&DECKS[m.id]) Deck.mount(DECKS[m.id]);
   }
 });
+
+function exportPPT(){
+  if(!A)return;
+  if(typeof PptxGenJS==='undefined'){toast('Carregant la llibreria PPT…');return;}
+  const pptx=new PptxGenJS();
+  pptx.layout='LAYOUT_16x9';pptx.title=A.title;
+  const W=10,H=5.625;
+  const C={dark:'00434A',teal:'00A8B0',light:'E6F6F7',ink:'1F2A2E',muted:'6B7C80',white:'FFFFFF',accent:A.accent,soft:A.soft};
+  const ftr=A.footer||(A.curs||'');
+  function addFoot(sl){sl.addText(ftr,{x:0.3,y:H-0.38,w:W-0.6,h:0.3,fontSize:11,color:C.muted,fontFace:'Calibri'});}
+  function addHead(sl,t){sl.addText(t,{x:0.5,y:0.22,w:W-1,h:0.6,fontSize:26,bold:true,color:C.dark,fontFace:'Calibri'});sl.addShape(pptx.ShapeType.line,{x:0.5,y:0.92,w:W-1,h:0,line:{color:C.light,width:2}});}
+  for(const s of A.slides){
+    const sl=pptx.addSlide();
+    if(s.type==='title'){
+      sl.background={color:C.dark};
+      sl.addText(s.title,{x:0.5,y:1.4,w:W-1,h:1.8,fontSize:40,bold:true,color:C.white,fontFace:'Calibri',valign:'middle',wrap:true});
+      if(s.sub)sl.addText(s.sub,{x:0.5,y:3.4,w:W-1,h:0.6,fontSize:18,color:'BFE8EB',fontFace:'Calibri',wrap:true});
+      sl.addText(A.curs||'',{x:0.3,y:H-0.38,w:W-0.6,h:0.3,fontSize:11,color:'BFE8EB',fontFace:'Calibri'});
+    } else if(s.type==='cards'){
+      sl.background={color:C.white};addHead(sl,s.title);
+      const n=s.cards.length,cols=n<=3?n:(n===5||n===6)?3:4,rows=Math.ceil(n/cols);
+      const cw=(W-1)/cols-0.1,ch=(H-1.8)/rows-0.1;
+      s.cards.forEach((c,i)=>{
+        const col=i%cols,row=Math.floor(i/cols),x=0.5+col*(cw+0.1),y=1.3+row*(ch+0.1);
+        sl.addShape(pptx.ShapeType.roundRect,{x,y,w:cw,h:ch,fill:{color:C.light},line:{color:'CCDDDE',width:1}});
+        sl.addText(c.t,{x:x+0.1,y:y+0.1,w:cw-0.2,h:0.38,fontSize:14,bold:true,color:C.dark,fontFace:'Calibri',wrap:true});
+        if(c.d)sl.addText(c.d,{x:x+0.1,y:y+0.52,w:cw-0.2,h:ch-0.62,fontSize:12,color:C.ink,fontFace:'Calibri',wrap:true,valign:'top'});
+      });addFoot(sl);
+    } else if(s.type==='rules'){
+      sl.background={color:C.white};addHead(sl,s.title);
+      const n=s.items.length,cols=Math.min(2,Math.ceil(n/3)),rows=Math.ceil(n/cols);
+      const cw=(W-1)/cols-0.1,ch=(H-1.8)/rows-0.1;
+      s.items.forEach((it,i)=>{
+        const col=i%cols,row=Math.floor(i/cols),x=0.5+col*(cw+0.1),y=1.3+row*(ch+0.1);
+        sl.addShape(pptx.ShapeType.roundRect,{x,y,w:cw,h:ch,fill:{color:C.light},line:{color:'CCDDDE',width:1}});
+        sl.addText(it.t,{x:x+0.1,y:y+0.1,w:cw-0.2,h:0.38,fontSize:14,bold:true,color:C.dark,fontFace:'Calibri'});
+        if(it.d)sl.addText(it.d,{x:x+0.1,y:y+0.52,w:cw-0.2,h:ch-0.62,fontSize:12,color:C.ink,fontFace:'Calibri',wrap:true,valign:'top'});
+      });addFoot(sl);
+    } else if(s.type==='quote'){
+      sl.background={color:C.white};addHead(sl,s.title);
+      sl.addShape(pptx.ShapeType.roundRect,{x:0.5,y:1.25,w:W-1,h:2.2,fill:{color:C.light},line:{color:C.teal,width:1.5}});
+      sl.addText(s.quote,{x:0.7,y:1.35,w:W-1.4,h:2.0,fontSize:18,italic:true,bold:true,color:C.dark,fontFace:'Calibri',align:'center',valign:'middle',wrap:true});
+      if(s.sides&&s.sides.length===2){
+        const hw=(W-1.1)/2;
+        sl.addShape(pptx.ShapeType.roundRect,{x:0.5,y:3.6,w:hw,h:1.5,fill:{color:'BFE8EB'},line:{color:'BFE8EB',width:0}});
+        sl.addShape(pptx.ShapeType.roundRect,{x:0.6+hw,y:3.6,w:hw,h:1.5,fill:{color:C.light},line:{color:C.light,width:0}});
+        [0,1].forEach(j=>{const sx=j===0?0.6:0.7+hw;
+          sl.addText(s.sides[j].t,{x:sx,y:3.7,w:hw-0.2,h:0.38,fontSize:13,bold:true,color:C.dark,fontFace:'Calibri'});
+          if(s.sides[j].d)sl.addText(s.sides[j].d,{x:sx,y:4.1,w:hw-0.2,h:0.9,fontSize:12,color:C.ink,fontFace:'Calibri',wrap:true});});
+      }addFoot(sl);
+    } else if(s.type==='flow'){
+      sl.background={color:C.white};addHead(sl,s.title);
+      const n=s.items.length,bw=(W-1)/n-0.08;
+      s.items.forEach((it,i)=>{
+        const x=0.5+i*(bw+0.08);
+        sl.addShape(pptx.ShapeType.roundRect,{x,y:1.25,w:bw,h:3.0,fill:{color:i%2===0?'D8EEF0':C.light},line:{color:C.teal,width:1}});
+        sl.addText(it.t,{x:x+0.1,y:1.35,w:bw-0.2,h:0.6,fontSize:13,bold:true,color:C.dark,fontFace:'Calibri',wrap:true,align:'center'});
+        if(it.d)sl.addText(it.d,{x:x+0.1,y:2.0,w:bw-0.2,h:1.5,fontSize:11,color:C.ink,fontFace:'Calibri',wrap:true,align:'center'});
+        if(it.time)sl.addText(it.time,{x:x+0.1,y:3.9,w:bw-0.2,h:0.28,fontSize:13,bold:true,color:C.teal,fontFace:'Calibri',align:'center'});
+      });
+      if(s.foot)sl.addText(s.foot,{x:0.5,y:4.3,w:W-1,h:0.4,fontSize:12,italic:true,color:C.dark,fontFace:'Calibri',wrap:true});
+      addFoot(sl);
+    } else if(s.type==='agenda'){
+      sl.background={color:C.white};addHead(sl,s.title);
+      const st=A.slides.filter(x=>x.type==='step');
+      const tot=st.reduce((t,x)=>t+x.mins,0);
+      const rows=st.map(x=>[{text:'Pas '+x.n,options:{bold:true,color:C.dark,fontFace:'Calibri'}},{text:x.title,options:{color:C.ink,fontFace:'Calibri'}},{text:x.time,options:{color:C.muted,fontFace:'Calibri'}},{text:x.mins+' min',options:{bold:true,color:C.teal,fontFace:'Calibri'}}]);
+      if(rows.length)sl.addTable(rows,{x:0.5,y:1.3,w:W-1,h:Math.min(3.6,(H-2.1)),fontSize:13,fontFace:'Calibri',border:{type:'solid',color:'d5e2e4',pt:1},align:'left',colW:[0.9,4.5,2.1,1.5]});
+      sl.addText('Total: '+tot+' minuts',{x:0.5,y:5.1,w:W-1,h:0.3,fontSize:12,italic:true,color:C.muted,fontFace:'Calibri'});
+      addFoot(sl);
+    } else if(s.type==='step'){
+      sl.background={color:C.white};
+      sl.addText('Pas '+s.n+' · '+s.title,{x:0.5,y:0.22,w:W-1,h:0.6,fontSize:26,bold:true,color:C.dark,fontFace:'Calibri'});
+      sl.addShape(pptx.ShapeType.line,{x:0.5,y:0.92,w:W-1,h:0,line:{color:C.light,width:2}});
+      sl.addText(s.time+' · '+s.mins+' minuts',{x:0.5,y:1.05,w:5,h:0.35,fontSize:14,bold:true,color:C.muted,fontFace:'Calibri'});
+      const aw=s.aside?3.3:0;
+      s.items.forEach((it,i)=>sl.addText(it,{x:0.5,y:1.5+i*0.65,w:W-1-aw-(aw?0.2:0),h:0.6,fontSize:14,color:C.ink,fontFace:'Calibri',bullet:{type:'bullet',color:C.teal},wrap:true}));
+      if(s.aside){
+        const ax=W-aw-0.5;
+        sl.addShape(pptx.ShapeType.roundRect,{x:ax,y:1.3,w:aw,h:3.5,fill:{color:C.light},line:{color:'CCDDDE',width:1}});
+        sl.addText(s.aside.t,{x:ax+0.1,y:1.4,w:aw-0.2,h:0.38,fontSize:14,bold:true,color:C.dark,fontFace:'Calibri'});
+        s.aside.items.forEach((it,i)=>sl.addText(it,{x:ax+0.1,y:1.85+i*0.52,w:aw-0.2,h:0.48,fontSize:12,color:C.ink,fontFace:'Calibri',bullet:{type:'bullet',color:C.teal},wrap:true}));
+      }addFoot(sl);
+    } else if(s.type==='close'){
+      sl.background={color:C.dark};
+      sl.addText(s.title,{x:0.5,y:0.3,w:W-1,h:0.6,fontSize:26,bold:true,color:C.white,fontFace:'Calibri'});
+      s.items.forEach((it,i)=>{
+        const n=s.items.length,cw=(W-1)/n-0.1,x=0.5+i*(cw+0.1);
+        sl.addShape(pptx.ShapeType.roundRect,{x,y:1.1,w:cw,h:4.0,fill:{color:'003840'},line:{color:C.teal,width:1.5}});
+        sl.addText(it,{x:x+0.1,y:1.4,w:cw-0.2,h:3.4,fontSize:16,bold:true,color:C.white,fontFace:'Calibri',wrap:true,valign:'middle',align:'center'});
+      });addFoot(sl);
+    }
+    if(s.notes)sl.addNotes(s.notes);
+  }
+  pptx.writeFile({fileName:(A.code||A.id)+' - '+A.title+'.pptx'}).then(()=>toast('PowerPoint descarregat!'));
+}
 initExemples();
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundled.js"></script>
 </body>
 </html>
