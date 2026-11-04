@@ -411,8 +411,7 @@ document.getElementById('stagewrap').addEventListener('touchend',e=>{if(sx==null
 function mount(d){D=d;document.getElementById('hlogo').src=d.logo;MV.querySelector('#home h1').textContent=d.meta.title;MV.querySelector('#home p.sub').textContent=d.meta.sub;home();build();MV.classList.remove('shownotes');document.getElementById('home').scrollTop=0;}
 
 function exportPPT(){
-  if(!A){alert('DEBUG: A is null');return;}
-  alert('DEBUG: A='+A.title+', PptxGenJS='+typeof PptxGenJS);
+  if(!A)return;
   if(typeof PptxGenJS==='undefined'){alert('La llibreria PPT no s\'ha carregat. Recarrega la pàgina i torna-ho a intentar.');return;}
   try{
   const pptx=new PptxGenJS();
@@ -544,6 +543,6 @@ window.addEventListener('message',function(e){
 
 initExemples();
 </script>
-<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundled.js"></script>
+<script src="https://unpkg.com/pptxgenjs@3.9.0/dist/pptxgen.bundled.js"></script>
 </body>
 </html>
