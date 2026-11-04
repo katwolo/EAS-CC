@@ -1693,12 +1693,14 @@ var EX_MODS=[
   {id:"ianimacio",tipus:"mg",curs:2,codi:"MG IAnimació",nom:"Inclusió i animació turística",d:"Mòdul globalitzat de segon curs, organitzat en quatre projectes.",mps:["MP1138","MP1142"]},
 ];
 var _exemUrls={};
+var _pptUrls={};
 async function renderExemples(){
   if(state.user&&state.user.rol==='admin') return renderExemplesAdmin();
   $('content').innerHTML='<div class="empty">Carregant…</div>';
   var r=await call('getExemplesConfig',{});
   var cfg=r.ok?r.config:{};
   _exemUrls=r.ok&&r.urls?r.urls:{};
+  _pptUrls=r.ok&&r.pptUrls?r.pptUrls:{};
   var mods=EX_MODS.filter(function(m){ return cfg[m.id]!==false; });
   paintExemplesCards(mods);
 }
@@ -1778,6 +1780,8 @@ function openExemples(id){
       : 'https://katwolo.github.io/EAS-CC';
     src=base+'/activitats CC/index.html#'+id;
   }
+  var pptUrl=_pptUrls[id]||'';
+  if(pptUrl) src+=(src.indexOf('?')>=0?'&':'?')+'ppt='+encodeURIComponent(pptUrl);
   ov.querySelector('iframe').src=src;
   ov.classList.add('show');
   var fab=$('helpFab');if(fab)fab.style.display='none';

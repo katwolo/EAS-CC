@@ -117,7 +117,7 @@ function handleRequest(action, payload) {
       case 'editUser':              return { ok:true, done: editUser_(payload) };
       case 'getClassesConfig':      return { ok:true, config: readClassesConfig_() };
       case 'saveClassesConfig':     return { ok:true, done: saveClassesConfig_(payload) };
-      case 'getExemplesConfig':     var _ec=readExemplesConfig_(); return { ok:true, config: _ec.config, urls: _ec.urls };
+      case 'getExemplesConfig':     var _ec=readExemplesConfig_(); return { ok:true, config: _ec.config, urls: _ec.urls, pptUrls: _ec.pptUrls };
       case 'saveExemplesConfig':    return { ok:true, done: saveExemplesConfig_(payload) };
       case 'getAlumneHistorial':    return { ok:true, data: getAlumneHistorial_(payload) };
       case 'resetPassword':         return { ok:true, done: resetPassword_(payload) };
@@ -1359,22 +1359,23 @@ function readExemplesConfig_(){
   var sh=ss.getSheetByName('Exemples');
   if(!sh){
     sh=ss.insertSheet('Exemples');
-    sh.getRange(1,1,1,2).setValues([['id','actiu']]).setFontWeight('bold');
+    sh.getRange(1,1,1,4).setValues([['id','actiu','url','ppt']]).setFontWeight('bold');
     FIXED.forEach(function(id,i){ sh.getRange(2+i,1,1,2).setValues([[id,'si']]); });
   }
   var v=sh.getDataRange().getValues();
   var hdrs=v[0].map(function(h){return String(h).trim();});
-  var ic=hdrs.indexOf('id'), ac=hdrs.indexOf('actiu'), uc=hdrs.indexOf('url');
-  var map={}, urls={};
+  var ic=hdrs.indexOf('id'), ac=hdrs.indexOf('actiu'), uc=hdrs.indexOf('url'), pc=hdrs.indexOf('ppt');
+  var map={}, urls={}, pptUrls={};
   FIXED.forEach(function(id){ map[id]=true; });
   for(var i=1;i<v.length;i++){
     var mid=String(v[i][ic>=0?ic:0]||'').trim();
     if(mid){
       map[mid]=(String(v[i][ac>=0?ac:1]||'').trim().toLowerCase()!=='no');
       if(uc>=0){ var u=String(v[i][uc]||'').trim(); if(u) urls[mid]=u; }
+      if(pc>=0){ var pu=String(v[i][pc]||'').trim(); if(pu) pptUrls[mid]=pu; }
     }
   }
-  return {config:map, urls:urls};
+  return {config:map, urls:urls, pptUrls:pptUrls};
 }
 function saveExemplesConfig_(p){
   var FIXED=['lleure','mp1139','mp1136','mp0179','mp1709','mg-esports','ianimacio'];
