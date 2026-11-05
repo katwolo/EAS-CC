@@ -117,7 +117,7 @@ function handleRequest(action, payload) {
       case 'editUser':              return { ok:true, done: editUser_(payload) };
       case 'getClassesConfig':      return { ok:true, config: readClassesConfig_() };
       case 'saveClassesConfig':     return { ok:true, done: saveClassesConfig_(payload) };
-      case 'getExemplesConfig':     var _ec=readExemplesConfig_(); return { ok:true, config: _ec.config, urls: _ec.urls, pptUrls: _ec.pptUrls };
+      case 'getExemplesConfig':     var _ec=readExemplesConfig_(); return Object.assign({ok:true},_ec);
       case 'saveExemplesConfig':    return { ok:true, done: saveExemplesConfig_(payload) };
       case 'getAlumneHistorial':    return { ok:true, data: getAlumneHistorial_(payload) };
       case 'resetPassword':         return { ok:true, done: resetPassword_(payload) };
@@ -1359,52 +1359,98 @@ function readExemplesConfig_(){
   var sh=ss.getSheetByName('Exemples');
   if(!sh){
     sh=ss.insertSheet('Exemples');
-    sh.getRange(1,1,1,12).setValues([['id','actiu','url','A1','A2','A3','A4','A5','A6','A7','A8','A9']]).setFontWeight('bold');
-    FIXED.forEach(function(id,i){ sh.getRange(2+i,1,1,2).setValues([[id,'si']]); });
+    sh.getRange(1,1,1,9).setValues([['mòdul','actiu','pla','num','títol','subtítol','hashtags','url','ppt']]).setFontWeight('bold');
+    FIXED.forEach(function(id){ sh.appendRow([id,'si','','','','','','','']); });
+    return {newFormat:true, mods:{}, acts:[]};
   }
   var v=sh.getDataRange().getValues();
-  var hdrs=v[0].map(function(h){return String(h).trim();});
-  var ic=hdrs.indexOf('id'), ac=hdrs.indexOf('actiu'), uc=hdrs.indexOf('url');
-  var map={}, urls={}, pptUrls={};
-  FIXED.forEach(function(id){ map[id]=true; });
-  for(var i=1;i<v.length;i++){
-    var mid=String(v[i][ic>=0?ic:0]||'').trim();
-    if(mid){
-      map[mid]=(String(v[i][ac>=0?ac:1]||'').trim().toLowerCase()!=='no');
-      if(uc>=0){ var u=String(v[i][uc]||'').trim(); if(u) urls[mid]=u; }
-      var actMap={};
-      for(var j=1;j<=9;j++){
-        var col=hdrs.indexOf('A'+j);
-        if(col>=0){ var pu=String(v[i][col]||'').trim(); if(pu) actMap['a'+j]=pu; }
+  if(v.length<1) return {newFormat:true, mods:{}, acts:[]};
+  function norm(s){ return String(s||'').trim().normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(); }
+  var hdrs=v[0].map(norm);
+  var isNew=(hdrs.indexOf('modul')>=0);
+  if(!isNew){
+    // Old format: id|actiu|url|A1-A9
+    var ic=hdrs.indexOf('id'), ac=hdrs.indexOf('actiu'), uc=hdrs.indexOf('url');
+    var map={}, urls={}, pptUrls={};
+    FIXED.forEach(function(id){ map[id]=true; });
+    for(var i=1;i<v.length;i++){
+      var mid=String(v[i][ic>=0?ic:0]||'').trim();
+      if(mid){
+        map[mid]=(String(v[i][ac>=0?ac:1]||'').trim().toLowerCase()!=='no');
+        if(uc>=0){ var u=String(v[i][uc]||'').trim(); if(u) urls[mid]=u; }
+        var actMap={};
+        for(var j=1;j<=9;j++){
+          var col=hdrs.indexOf('a'+j);
+          if(col>=0){ var pu=String(v[i][col]||'').trim(); if(pu) actMap['a'+j]=pu; }
+        }
+        if(Object.keys(actMap).length) pptUrls[mid]=actMap;
       }
-      if(Object.keys(actMap).length) pptUrls[mid]=actMap;
     }
+    return {newFormat:false, config:map, urls:urls, pptUrls:pptUrls};
   }
-  return {config:map, urls:urls, pptUrls:pptUrls};
+  // New format: mòdul|actiu|pla|num|títol|subtítol|hashtags|url|ppt
+  var ci={
+    mod:hdrs.indexOf('modul'), actiu:hdrs.indexOf('actiu'),
+    pla:hdrs.indexOf('pla'), num:hdrs.indexOf('num'),
+    titol:hdrs.indexOf('titol'), sub:hdrs.indexOf('subtitol'),
+    tags:hdrs.indexOf('hashtags'), url:hdrs.indexOf('url'), ppt:hdrs.indexOf('ppt')
+  };
+  var mods={}, acts=[];
+  FIXED.forEach(function(id){ mods[id]=true; });
+  for(var i=1;i<v.length;i++){
+    var row=v[i];
+    var mid2=String(row[ci.mod>=0?ci.mod:0]||'').trim();
+    if(!mid2) continue;
+    var actiu2=(String(row[ci.actiu>=0?ci.actiu:1]||'').trim().toLowerCase()!=='no');
+    var pla=ci.pla>=0?String(row[ci.pla]||'').trim().toUpperCase():'';
+    var num=ci.num>=0?parseInt(String(row[ci.num]||'').trim())||0:0;
+    if(!pla){ mods[mid2]=actiu2; }
+    else{ acts.push({mod:mid2,actiu:actiu2,pla:pla,num:num,
+      titol:ci.titol>=0?String(row[ci.titol]||'').trim():'',
+      sub:ci.sub>=0?String(row[ci.sub]||'').trim():'',
+      tags:ci.tags>=0?String(row[ci.tags]||'').trim():'',
+      url:ci.url>=0?String(row[ci.url]||'').trim():'',
+      ppt:ci.ppt>=0?String(row[ci.ppt]||'').trim():''}); }
+  }
+  return {newFormat:true, mods:mods, acts:acts};
 }
 function saveExemplesConfig_(p){
   var FIXED=['lleure','mp1139','mp1136','mp0179','mp1709','mg-esports','ianimacio'];
   var ss=getSS_();
   var sh=ss.getSheetByName('Exemples');
-  if(!sh){
-    sh=ss.insertSheet('Exemples');
-    sh.getRange(1,1,1,2).setValues([['id','actiu']]).setFontWeight('bold');
+  if(!sh){ sh=ss.insertSheet('Exemples'); }
+  if(p.acts!==undefined){
+    // New format save
+    sh.clearContents();
+    var hdrs=['mòdul','actiu','pla','num','títol','subtítol','hashtags','url','ppt'];
+    var rows=[hdrs];
+    var mods=p.mods||{}, acts=p.acts||[];
+    var allMods=FIXED.slice();
+    Object.keys(mods).forEach(function(id){ if(allMods.indexOf(id)<0) allMods.push(id); });
+    allMods.forEach(function(mid){
+      rows.push([mid,(mods[mid]===false)?'no':'si','','','','','','','']);
+      acts.filter(function(a){return a.mod===mid;})
+          .sort(function(a,b){ return a.pla<b.pla?-1:a.pla>b.pla?1:a.num-b.num; })
+          .forEach(function(a){ rows.push([a.mod,a.actiu?'si':'no',a.pla||'',a.num||'',a.titol||'',a.sub||'',a.tags||'',a.url||'',a.ppt||'']); });
+    });
+    sh.getRange(1,1,rows.length,9).setValues(rows);
+    sh.getRange(1,1,1,9).setFontWeight('bold');
+  } else {
+    // Old format save (backward compat)
+    var v=sh.getDataRange().getValues();
+    var h2=v[0].map(function(h){return String(h).trim();});
+    var ic2=h2.indexOf('id')+1, ac2=h2.indexOf('actiu')+1;
+    if(ic2<=0){ sh.getRange(1,1).setValue('id'); ic2=1; }
+    if(ac2<=0){ sh.getRange(1,2).setValue('actiu'); ac2=2; }
+    var rm={};
+    for(var i=1;i<v.length;i++){ var m=String(v[i][ic2-1]||'').trim(); if(m) rm[m]=i+1; }
+    var cfg=p.config||{};
+    FIXED.forEach(function(id){
+      var val=(cfg[id]===false)?'no':'si';
+      if(rm[id]){ sh.getRange(rm[id],ac2).setValue(val); }
+      else{ var lr=sh.getLastRow(); sh.getRange(lr+1,ic2).setValue(id); sh.getRange(lr+1,ac2).setValue(val); rm[id]=lr+1; }
+    });
   }
-  var v=sh.getDataRange().getValues();
-  var hdrs=v[0].map(function(h){return String(h).trim();});
-  var ic=hdrs.indexOf('id')+1, ac=hdrs.indexOf('actiu')+1;
-  if(ic<=0){ sh.getRange(1,1).setValue('id'); ic=1; }
-  if(ac<=0){ sh.getRange(1,2).setValue('actiu'); ac=2; }
-  var rowMap={};
-  for(var i=1;i<v.length;i++){
-    var mid=String(v[i][ic-1]||'').trim(); if(mid) rowMap[mid]=i+1;
-  }
-  var cfg=p.config||{};
-  FIXED.forEach(function(id){
-    var val=(cfg[id]===false)?'no':'si';
-    if(rowMap[id]){ sh.getRange(rowMap[id],ac).setValue(val); }
-    else{ var lr=sh.getLastRow(); sh.getRange(lr+1,ic).setValue(id); sh.getRange(lr+1,ac).setValue(val); rowMap[id]=lr+1; }
-  });
   return true;
 }
 

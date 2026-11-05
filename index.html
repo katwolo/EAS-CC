@@ -193,9 +193,41 @@
   .ex-course{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
   .ex-course-h{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}
   .ex-course-h h3{font-size:15px;font-weight:600;margin:0}
-  #exemOverlay{position:fixed;inset:0;z-index:300;display:none;background:#000}
-  #exemOverlay.show{display:block}
-  #exemOverlay iframe{width:100%;height:100%;border:0;display:block}
+  #exemOverlay{position:fixed;inset:0;z-index:300;display:none;flex-direction:column;background:#000}
+  #exemOverlay.show{display:flex}
+  #exemBar{height:46px;background:#0d1f24;display:flex;align-items:center;justify-content:space-between;padding:0 14px;gap:12px;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.08)}
+  #exemActTitle{font-size:13px;font-weight:600;color:#cddde0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  #exemBarRight{display:flex;align-items:center;gap:8px;flex-shrink:0}
+  #exemPptBtn{font-size:12px;padding:5px 11px;border-radius:6px;background:rgba(0,168,176,.2);color:#00c8d0;text-decoration:none;white-space:nowrap;border:1px solid rgba(0,200,208,.25)}
+  #exemCloseBtn{background:transparent;border:none;color:rgba(255,255,255,.5);font-size:22px;cursor:pointer;padding:2px 6px;line-height:1}
+  #exemCloseBtn:hover{color:#fff}
+  #exemOverlay iframe{flex:1;width:100%;border:0;min-height:0}
+  /* Chips */
+  .ex-mod{margin-bottom:28px}
+  .ex-mod-h{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .ex-mod-codi{font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--accent)}
+  .ex-mod-nom{font-size:13.5px;font-weight:500;color:var(--text)}
+  .ex-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .ex-chip{border:none;border-radius:10px;padding:10px 14px;cursor:pointer;text-align:left;min-width:68px;transition:transform .15s,box-shadow .15s;line-height:1.3}
+  .ex-chip:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.25)}
+  .ex-chip-a{background:var(--accent-soft);color:var(--accent)}
+  .ex-chip-b{background:rgba(251,191,36,.12);color:#ca8a04}
+  @media(prefers-color-scheme:dark){.ex-chip-b{color:#fbbf24}}
+  .ex-chip-label{display:block;font-size:17px;font-weight:800;margin-bottom:2px}
+  .ex-chip-title{display:block;font-size:11px;line-height:1.3;opacity:.75;max-width:120px}
+  /* Admin new */
+  .exem-admin-mod{margin-bottom:28px}
+  .exem-admin-mod-h{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:2px solid var(--border);margin-bottom:10px}
+  .exem-act-card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px 14px;margin-bottom:8px;display:grid;gap:6px}
+  .exem-act-card-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .exem-act-card select,.exem-act-card input[type=text],.exem-act-card input[type=url]{font-size:12.5px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);width:100%}
+  .exem-act-card select{width:auto}
+  .exem-act-card input[type=number]{font-size:12.5px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);width:56px}
+  .exem-act-lbl{font-size:11.5px;color:var(--muted);margin:4px 0 2px}
+  .exem-act-2col{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .btn-del{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:#ef4444;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;margin-left:auto}
+  .btn-sm{font-size:12.5px;padding:5px 12px;border:1px dashed var(--border);border-radius:7px;background:transparent;color:var(--muted);cursor:pointer;margin-top:4px}
+  .btn-sm:hover{border-color:var(--accent);color:var(--accent)}
 </style>
 </head>
 <body>
@@ -1694,13 +1726,22 @@ var EX_MODS=[
 ];
 var _exemUrls={};
 var _pptUrls={};
+var _exemActs=[];
+var _exemModsCfg={};
 async function renderExemples(){
   if(state.user&&state.user.rol==='admin') return renderExemplesAdmin();
   $('content').innerHTML='<div class="empty">Carregant…</div>';
   var r=await call('getExemplesConfig',{});
-  var cfg=r.ok?r.config:{};
-  _exemUrls=r.ok&&r.urls?r.urls:{};
-  _pptUrls=r.ok&&r.pptUrls?r.pptUrls:{};
+  if(!r.ok) return;
+  if(r.newFormat){
+    _exemActs=r.acts||[];
+    _exemModsCfg=r.mods||{};
+    renderExemplesNew(r.mods||{},r.acts||[]);
+    return;
+  }
+  var cfg=r.config||{};
+  _exemUrls=r.urls||{};
+  _pptUrls=r.pptUrls||{};
   var mods=EX_MODS.filter(function(m){ return cfg[m.id]!==false; });
   paintExemplesCards(mods);
 }
@@ -1731,11 +1772,52 @@ function paintExemplesCards(mods){
     +(mods.length===0?'<div class="empty">Cap mòdul actiu. Un administrador pot activar-ne des d\'aquesta mateixa secció.</div>':'')
     +'</div>';
 }
+function renderExemplesNew(mods,acts){
+  var base=location.hostname.indexOf('github.io')>=0?(location.origin+location.pathname.replace(/\/[^\/]*$/,'')):'https://katwolo.github.io/EAS-CC';
+  var byMod={};
+  acts.forEach(function(a){ if(!byMod[a.mod])byMod[a.mod]=[]; byMod[a.mod].push(a); });
+  var activeMods=EX_MODS.filter(function(m){ return mods[m.id]!==false; });
+  $('content').innerHTML=
+    '<div style="padding:24px 0 0">'
+    +'<h2 style="font-size:18px;margin-bottom:4px">Exemples pràctics</h2>'
+    +'<p style="color:var(--muted);font-size:13.5px;margin-bottom:24px">Activitats de capacitats clau. Clica una activitat per obrir la presentació.</p>'
+    +activeMods.map(function(m){
+      var modActs=(byMod[m.id]||[]).filter(function(a){return a.actiu;}).sort(function(a,b){return a.pla<b.pla?-1:a.pla>b.pla?1:a.num-b.num;});
+      if(!modActs.length) return '';
+      return '<div class="ex-mod">'
+        +'<div class="ex-mod-h"><span class="ex-mod-codi">'+esc(m.codi)+'</span><span class="ex-mod-nom">'+esc(m.nom)+'</span>'
+        +'<span class="ex-kind '+(m.tipus==='mg'?'mg':'mp')+'">'+(m.tipus==='mg'?'Globalitzat':'Individual')+'</span></div>'
+        +'<div class="ex-chips">'+modActs.map(function(a){
+          return '<button class="ex-chip ex-chip-'+a.pla.toLowerCase()+'" title="'+esc(a.titol||'')+'" onclick="openExemplesAct(\''+esc(m.id)+'\',\''+esc(a.pla)+'\','+a.num+')">'
+            +'<span class="ex-chip-label">'+esc(a.pla+a.num)+'</span>'
+            +(a.titol?'<span class="ex-chip-title">'+esc(a.titol)+'</span>':'')
+            +'</button>';
+        }).join('')+'</div></div>';
+    }).join('')
+    +(activeMods.length===0?'<div class="empty">Cap mòdul actiu.</div>':'')
+    +'</div>';
+}
+function openExemplesAct(modId,pla,num){
+  var act=_exemActs.find(function(a){return a.mod===modId&&a.pla===pla&&a.num===num;});
+  if(!act) return;
+  var base=location.hostname.indexOf('github.io')>=0?(location.origin+location.pathname.replace(/\/[^\/]*$/,'')):'https://katwolo.github.io/EAS-CC';
+  var url=act.url||'';
+  if(!url) url=base+'/activitats CC/index.html#'+modId;
+  var ov=$('exemOverlay');
+  $('exemActTitle').textContent=act.pla+act.num+(act.titol?' — '+act.titol:'');
+  var pptBtn=$('exemPptBtn');
+  if(act.ppt){pptBtn.href=act.ppt;pptBtn.style.display='inline-block';}
+  else{pptBtn.style.display='none';}
+  ov.querySelector('iframe').src=url;
+  ov.classList.add('show');
+  var fab=$('helpFab');if(fab)fab.style.display='none';
+}
 async function renderExemplesAdmin(){
   $('content').innerHTML='<div class="empty">Carregant…</div>';
   var r=await call('getExemplesConfig',{});
   if(!r.ok) return showError(r.error);
-  paintExemplesAdmin(r.config);
+  if(r.newFormat){ paintExemplesAdminNew(r.mods||{},r.acts||[]); }
+  else { paintExemplesAdmin(r.config||{}); }
 }
 function paintExemplesAdmin(cfg){
   $('content').innerHTML=
@@ -1747,24 +1829,92 @@ function paintExemplesAdmin(cfg){
       var on=(cfg[m.id]!==false);
       var border=(i<EX_MODS.length-1)?'border-bottom:1px solid var(--border)':'';
       return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;'+border+'">'
-        +'<div>'
-        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">'
+        +'<div><div style="display:flex;align-items:center;gap:8px;margin-bottom:2px">'
         +'<span style="font-family:var(--mono);font-size:13px;font-weight:600;color:'+(m.tipus==='mg'?'#a78bfa':'var(--accent-2)')+'">'+esc(m.codi)+'</span>'
-        +'<span style="font-size:10.5px;font-weight:600;text-transform:uppercase;padding:2px 7px;border-radius:5px;'+(m.tipus==='mg'?'background:rgba(167,139,250,.15);color:#a78bfa':'background:var(--accent-soft);color:var(--accent-2)')+'">'+esc(m.curs===1?'1r curs':'2n curs')+'</span>'
-        +'</div>'
-        +'<div style="font-size:14px;font-weight:500">'+esc(m.nom)+'</div>'
-        +'</div>'
+        +'<span style="font-size:10.5px;font-weight:600;text-transform:uppercase;padding:2px 7px;border-radius:5px;'+(m.tipus==='mg'?'background:rgba(167,139,250,.15);color:#a78bfa':'background:var(--accent-soft);color:var(--accent-2)')+'">'+esc(m.curs===1?'1r curs':'2n curs')+'</span></div>'
+        +'<div style="font-size:14px;font-weight:500">'+esc(m.nom)+'</div></div>'
         +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0">'
         +'<input type="checkbox" id="ex_'+m.id+'" '+(on?'checked':'')+' style="width:17px;height:17px;accent-color:var(--accent);cursor:pointer">'
-        +'<span style="font-size:13px;color:var(--muted)">Visible</span>'
-        +'</label>'
-        +'</div>';
+        +'<span style="font-size:13px;color:var(--muted)">Visible</span></label></div>';
     }).join('')
     +'</div>'
-    +'<div style="margin-top:16px"><button class="btn" onclick="saveExemplesAdmin()">Desar</button></div>'
+    +'<div style="margin-top:16px"><button class="btn" onclick="saveExemplesAdminOld()">Desar</button></div>'
     +'</div>';
 }
+function paintExemplesAdminNew(mods,acts){
+  window._adminMods=Object.assign({},mods);
+  var html='<div style="padding:24px 0 0">'
+    +'<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:4px">'
+    +'<h2 style="font-size:18px">Exemples pràctics</h2>'
+    +'<span style="font-size:12.5px;color:var(--muted)">Administrador</span></div>'
+    +'<p style="color:var(--muted);font-size:13.5px;margin-bottom:24px">Gestiona activitats, títols, presentacions i PPT per mòdul.</p>';
+  EX_MODS.forEach(function(m){
+    var modOn=(mods[m.id]!==false);
+    var modActs=acts.filter(function(a){return a.mod===m.id;}).sort(function(a,b){return a.pla<b.pla?-1:a.pla>b.pla?1:a.num-b.num;});
+    html+='<div class="exem-admin-mod">'
+      +'<div class="exem-admin-mod-h">'
+      +'<input type="checkbox" id="mod_'+m.id+'" '+(modOn?'checked':'')+' style="width:16px;height:16px;accent-color:var(--accent)">'
+      +'<span style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent)">'+esc(m.codi)+'</span>'
+      +'<span style="font-size:14px;font-weight:600">'+esc(m.nom)+'</span>'
+      +'<span class="ex-kind '+(m.tipus==='mg'?'mg':'mp')+'" style="margin-left:auto">'+(m.curs===1?'1r':'2n')+' curs</span></div>'
+      +'<div id="acts_'+m.id+'">'
+      +modActs.map(function(a){ return actCardHtml(m.id,a); }).join('')
+      +'</div>'
+      +'<button class="btn-sm" onclick="addExemAct(\''+m.id+'\')">+ Afegir activitat</button>'
+      +'</div>';
+  });
+  html+='<div style="margin-top:24px;display:flex;gap:10px"><button class="btn" onclick="saveExemplesAdmin()">Desar tots els canvis</button></div></div>';
+  $('content').innerHTML=html;
+}
+function actCardHtml(modId,a){
+  return '<div class="exem-act-card" data-mod="'+modId+'">'
+    +'<div class="exem-act-card-h">'
+    +'<select data-f="pla" style="width:60px"><option '+(a.pla==='A'?'selected':'')+'>A</option><option '+(a.pla==='B'?'selected':'')+'>B</option></select>'
+    +'<input type="number" min="1" max="9" data-f="num" value="'+(a.num||'')+'" placeholder="#">'
+    +'<label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer;margin-left:4px">'
+    +'<input type="checkbox" data-f="actiu" '+(a.actiu!==false?'checked':'')+' style="accent-color:var(--accent)"> Actiu</label>'
+    +'<button class="btn-del" onclick="this.closest(\'.exem-act-card\').remove()">Elimina</button>'
+    +'</div>'
+    +'<div class="exem-act-lbl">Títol</div>'
+    +'<input type="text" data-f="titol" placeholder="Títol de l\'activitat" value="'+esc(a.titol||'')+'">'
+    +'<div class="exem-act-lbl">Subtítol</div>'
+    +'<input type="text" data-f="sub" placeholder="Subtítol (opcional)" value="'+esc(a.sub||'')+'">'
+    +'<div class="exem-act-lbl">Hashtags</div>'
+    +'<input type="text" data-f="tags" placeholder="#comunicació,#equip" value="'+esc(a.tags||'')+'">'
+    +'<div class="exem-act-2col">'
+    +'<div><div class="exem-act-lbl">URL presentació</div>'
+    +'<input type="url" data-f="url" placeholder="https://..." value="'+esc(a.url||'')+'"></div>'
+    +'<div><div class="exem-act-lbl">URL PPT descàrrega</div>'
+    +'<input type="url" data-f="ppt" placeholder="https://..." value="'+esc(a.ppt||'')+'"></div>'
+    +'</div></div>';
+}
+function addExemAct(modId){
+  var container=$('acts_'+modId); if(!container) return;
+  container.insertAdjacentHTML('beforeend',actCardHtml(modId,{pla:'A',num:'',titol:'',sub:'',tags:'',url:'',ppt:'',actiu:true}));
+}
 async function saveExemplesAdmin(){
+  if(!window._adminMods) return saveExemplesAdminOld();
+  var mods={};
+  EX_MODS.forEach(function(m){ var el=$('mod_'+m.id); mods[m.id]=!el||el.checked; });
+  var acts=[];
+  document.querySelectorAll('.exem-act-card').forEach(function(card){
+    var modId=card.dataset.mod;
+    var pla=(card.querySelector('[data-f="pla"]')||{}).value||'A';
+    var num=parseInt((card.querySelector('[data-f="num"]')||{}).value)||0;
+    var titol=((card.querySelector('[data-f="titol"]')||{}).value||'').trim();
+    var sub=((card.querySelector('[data-f="sub"]')||{}).value||'').trim();
+    var tags=((card.querySelector('[data-f="tags"]')||{}).value||'').trim();
+    var url=((card.querySelector('[data-f="url"]')||{}).value||'').trim();
+    var ppt=((card.querySelector('[data-f="ppt"]')||{}).value||'').trim();
+    var actiu=(card.querySelector('[data-f="actiu"]')||{}).checked!==false;
+    if(modId&&pla&&num) acts.push({mod:modId,pla:pla,num:num,titol:titol,sub:sub,tags:tags,url:url,ppt:ppt,actiu:actiu});
+  });
+  var r=await call('saveExemplesConfig',{mods:mods,acts:acts});
+  if(!r.ok) return showError(r.error);
+  toast('Configuració desada.');
+  renderExemplesAdmin();
+}
+async function saveExemplesAdminOld(){
   var cfg={};
   EX_MODS.forEach(function(m){ var el=$('ex_'+m.id); cfg[m.id]=el?el.checked:true; });
   var r=await call('saveExemplesConfig',{config:cfg});
@@ -1773,15 +1923,13 @@ async function saveExemplesAdmin(){
 }
 function openExemples(id){
   var ov=$('exemOverlay');
+  var base=location.hostname.indexOf('github.io')>=0?(location.origin+location.pathname.replace(/\/[^\/]*$/,'')):'https://katwolo.github.io/EAS-CC';
   var src=_exemUrls[id]||null;
-  if(!src){
-    var base=location.hostname.indexOf('github.io')>=0
-      ? (location.origin+location.pathname.replace(/\/[^\/]*$/,''))
-      : 'https://katwolo.github.io/EAS-CC';
-    src=base+'/activitats CC/index.html#'+id;
-  }
+  if(!src) src=base+'/activitats CC/index.html#'+id;
   var pptMap=_pptUrls[id]||null;
   if(pptMap&&Object.keys(pptMap).length) src+=(src.indexOf('?')>=0?'&':'?')+'ppts='+encodeURIComponent(JSON.stringify(pptMap));
+  $('exemActTitle').textContent=id;
+  var pptBtn=$('exemPptBtn'); pptBtn.style.display='none';
   ov.querySelector('iframe').src=src;
   ov.classList.add('show');
   var fab=$('helpFab');if(fab)fab.style.display='none';
@@ -1790,6 +1938,7 @@ function closeExemples(){
   var ov=$('exemOverlay');
   ov.classList.remove('show');
   ov.querySelector('iframe').src='about:blank';
+  var pptBtn=$('exemPptBtn'); if(pptBtn) pptBtn.style.display='none';
   var fab=$('helpFab');if(fab&&state.user&&state.user.rol!=='alumne')fab.style.display='flex';
 }
 window.addEventListener('message',function(e){
@@ -1815,6 +1964,6 @@ function hexA(hex,a){hex=hex.replace('#','');var r=parseInt(hex.substr(0,2),16),
 initTheme();
 </script>
 <button id="helpFab" onclick="window.open('https://claude.ai/code/artifact/2725f0fa-700f-43f9-9baa-dcb929d31167','_blank')" title="Guia d'ús per al professorat" aria-label="Ajuda">?</button>
-<div id="exemOverlay"><iframe title="Exemples pràctics" allow="fullscreen"></iframe></div>
+<div id="exemOverlay"><div id="exemBar"><span id="exemActTitle"></span><div id="exemBarRight"><a id="exemPptBtn" target="_blank" rel="noopener" style="display:none">⬇ PPT</a><button id="exemCloseBtn" onclick="closeExemples()" title="Tancar (Esc)">✕</button></div></div><iframe title="Exemples pràctics" allow="fullscreen"></iframe></div>
 </body>
 </html>
