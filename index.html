@@ -1802,7 +1802,8 @@ function openExemplesAct(modId,pla,num){
   if(!act) return;
   var base=location.hostname.indexOf('github.io')>=0?(location.origin+location.pathname.replace(/\/[^\/]*$/,'')):'https://katwolo.github.io/EAS-CC';
   var url=act.url||'';
-  if(!url) url=base+'/activitats CC/index.html#'+modId;
+  var actKey=act.pla.toLowerCase()+act.num;
+  if(!url) url=base+'/activitats CC/index.html?mod='+encodeURIComponent(modId)+'&act='+actKey+'#'+modId;
   var ov=$('exemOverlay');
   $('exemActTitle').textContent=act.pla+act.num+(act.titol?' — '+act.titol:'');
   var pptBtn=$('exemPptBtn');

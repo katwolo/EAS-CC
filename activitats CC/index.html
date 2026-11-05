@@ -514,7 +514,8 @@ function _exportPPT_unused(){
   pptx.writeFile({fileName:(A.code||A.id)+' - '+A.title+'.pptx'});
   }catch(e){alert('Error PPT: '+e.message+'\n'+e.stack);}
 }
-return {mount,close:()=>{A=null;}};
+function openById(id){const k=D.acts.findIndex(a=>a.id===id||a.code===id||a.code===id.toUpperCase());if(k>=0)open(k);}
+return {mount,openById,close:()=>{A=null;}};
 })();
 
 
@@ -527,13 +528,16 @@ function initExemples(){
   const params=new URLSearchParams(location.search);
   const pptsParam=params.get('ppts');
   if(pptsParam){try{window._modPpts=JSON.parse(pptsParam);}catch(e){}}
+  const actParam=params.get('act');
   const h=location.hash.slice(1)||location.search.slice(4);
   const modId=h.split('&')[0];
   const mv=document.getElementById('modview');
   mv.removeAttribute('hidden');
   const m=MODS.find(x=>x.id===modId);
-  if(m&&DECKS[m.id]){Deck.mount(DECKS[m.id]);}
-  else{
+  if(m&&DECKS[m.id]){
+    Deck.mount(DECKS[m.id]);
+    if(actParam) Deck.openById(actParam);
+  } else{
     const first=MODS.find(x=>DECKS[x.id]);
     if(first) Deck.mount(DECKS[first.id]);
   }
