@@ -1816,8 +1816,10 @@ async function renderExemplesAdmin(){
   $('content').innerHTML='<div class="empty">Carregant…</div>';
   var r=await call('getExemplesConfig',{});
   if(!r.ok) return showError(r.error);
-  if(r.newFormat){ paintExemplesAdminNew(r.mods||{},r.acts||[]); }
-  else { paintExemplesAdmin(r.config||{}); }
+  var mods={}, acts=[];
+  if(r.newFormat){ mods=r.mods||{}; acts=r.acts||[]; }
+  else { var cfg=r.config||{}; EX_MODS.forEach(function(m){ mods[m.id]=(cfg[m.id]!==false); }); }
+  paintExemplesAdminNew(mods,acts);
 }
 function paintExemplesAdmin(cfg){
   $('content').innerHTML=
