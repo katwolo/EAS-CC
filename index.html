@@ -220,8 +220,13 @@
   .ex-chip-label{display:block;font-size:17px;font-weight:800;margin-bottom:2px}
   .ex-chip-title{display:block;font-size:11px;line-height:1.3;opacity:.75;max-width:120px}
   /* Admin new */
-  .exem-admin-mod{margin-bottom:28px}
-  .exem-admin-mod-h{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:2px solid var(--border);margin-bottom:10px}
+  .exem-admin-mod{margin-bottom:8px;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .exem-admin-mod-h{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;user-select:none;background:var(--card)}
+  .exem-admin-mod-h:hover{background:var(--hover)}
+  .exem-admin-mod-toggle{margin-left:auto;font-size:13px;opacity:.5;transition:transform .2s;flex-shrink:0}
+  .exem-admin-mod.open .exem-admin-mod-toggle{transform:rotate(180deg)}
+  .exem-admin-mod-body{padding:12px 14px;border-top:1px solid var(--border);display:none}
+  .exem-admin-mod.open .exem-admin-mod-body{display:block}
   .exem-act-card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px 14px;margin-bottom:8px;display:grid;gap:6px}
   .exem-act-card-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .exem-act-card select,.exem-act-card input[type=text],.exem-act-card input[type=url]{font-size:12.5px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);width:100%}
@@ -1777,6 +1782,7 @@ function paintExemplesCards(mods){
     +'</div>';
 }
 function toggleExMod(id){var el=document.getElementById('exmod_'+id);if(el)el.classList.toggle('open');}
+function toggleAdmMod(id){var el=document.getElementById('admmod_'+id);if(el)el.classList.toggle('open');}
 function renderExemplesNew(mods,acts){
   var base=location.hostname.indexOf('github.io')>=0?(location.origin+location.pathname.replace(/\/[^\/]*$/,'')):'https://katwolo.github.io/EAS-CC';
   var byMod={};
@@ -1789,8 +1795,7 @@ function renderExemplesNew(mods,acts){
     +activeMods.map(function(m){
       var modActs=(byMod[m.id]||[]).filter(function(a){return a.actiu;}).sort(function(a,b){return a.pla<b.pla?-1:a.pla>b.pla?1:a.num-b.num;});
       if(!modActs.length) return '';
-      var isFirst=activeMods.indexOf(m)===0;
-      return '<div class="ex-mod'+(isFirst?' open':'')+'" id="exmod_'+m.id+'">'
+      return '<div class="ex-mod" id="exmod_'+m.id+'">'
         +'<div class="ex-mod-h" onclick="toggleExMod(\''+m.id+'\')">'
         +'<span class="ex-mod-codi">'+esc(m.codi)+'</span><span class="ex-mod-nom">'+esc(m.nom)+'</span>'
         +'<span class="ex-kind '+(m.tipus==='mg'?'mg':'mp')+'">'+(m.tipus==='mg'?'Globalitzat':'Individual')+'</span>'
@@ -1862,16 +1867,19 @@ function paintExemplesAdminNew(mods,acts){
   EX_MODS.forEach(function(m){
     var modOn=(mods[m.id]!==false);
     var modActs=acts.filter(function(a){return a.mod===m.id;}).sort(function(a,b){return a.pla<b.pla?-1:a.pla>b.pla?1:a.num-b.num;});
-    html+='<div class="exem-admin-mod">'
-      +'<div class="exem-admin-mod-h">'
-      +'<input type="checkbox" id="mod_'+m.id+'" '+(modOn?'checked':'')+' style="width:16px;height:16px;accent-color:var(--accent)">'
+    html+='<div class="exem-admin-mod" id="admmod_'+m.id+'">'
+      +'<div class="exem-admin-mod-h" onclick="toggleAdmMod(\''+m.id+'\')">'
+      +'<input type="checkbox" id="mod_'+m.id+'" '+(modOn?'checked':'')+' style="width:16px;height:16px;accent-color:var(--accent)" onclick="event.stopPropagation()">'
       +'<span style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent)">'+esc(m.codi)+'</span>'
       +'<span style="font-size:14px;font-weight:600">'+esc(m.nom)+'</span>'
-      +'<span class="ex-kind '+(m.tipus==='mg'?'mg':'mp')+'" style="margin-left:auto">'+(m.curs===1?'1r':'2n')+' curs</span></div>'
+      +'<span class="ex-kind '+(m.tipus==='mg'?'mg':'mp')+'">'+(m.curs===1?'1r':'2n')+' curs</span>'
+      +'<span class="exem-admin-mod-toggle">▼</span></div>'
+      +'<div class="exem-admin-mod-body">'
       +'<div id="acts_'+m.id+'">'
       +modActs.map(function(a){ return actCardHtml(m.id,a); }).join('')
       +'</div>'
       +'<button class="btn-sm" onclick="addExemAct(\''+m.id+'\')">+ Afegir activitat</button>'
+      +'</div>'
       +'</div>';
   });
   html+='<div style="margin-top:24px;display:flex;gap:10px"><button class="btn" onclick="saveExemplesAdmin()">Desar tots els canvis</button></div></div>';
