@@ -103,6 +103,7 @@ function handleRequest(action, payload) {
       case 'getModuleResum':        return { ok:true, data: getModuleResum_(payload) };
       case 'getAlumneGlobalResum':  return { ok:true, data: getAlumneGlobalResum_(payload) };
       case 'getClassGlobalResum':  return { ok:true, data: getClassGlobalResum_(payload) };
+      case 'generateBuidatgeSheet': return { ok:true, url: generateBuidatgeSheet_(payload) };
       case 'getInici':              return { ok:true, data: getInici_(payload) };
       // gestió de projectes
       case 'listProjects':          return { ok:true, projects: listProjects_(payload) };
@@ -1572,5 +1573,158 @@ function createModuleSheets() {
     }catch(err){ Logger.log('ERROR mòdul %s: %s', codi, String(err)); }
   });
   Logger.log('createModuleSheets/reparació feta.');
+}
+
+/* ============== BUIDATGE (SEGUIMENT CC) ============== */
+function columnToLetter_(col){
+  var s=''; while(col>0){col--;s=String.fromCharCode(65+(col%26))+s;col=Math.floor(col/26);} return s;
+}
+function buildObservacions_(s,RCAPS,RNAMES){
+  var obs=[], cells=s.cells;
+  var insuf=RCAPS.filter(function(c){return cells[c]!=null&&cells[c]<=2;}).map(function(c){return RNAMES[c]+' ('+cells[c]+'/10)';});
+  if(insuf.length) obs.push('Insuficient a: '+insuf.join(', '));
+  var aval=RCAPS.filter(function(c){return cells[c]!=null;}).length;
+  if(aval<=4) obs.push('Poques evidències ('+aval+'/7 avaluades)');
+  if(aval>0&&s.nota!=null){
+    var mean=RCAPS.reduce(function(a,c){return cells[c]!=null?a+cells[c]:a;},0)/aval;
+    if(Math.abs(s.nota-mean)>1) obs.push('Desviació nota informe ('+s.nota.toFixed(1)+' vs mitjana CC '+mean.toFixed(2)+')');
+  }
+  if(s.nota!=null&&s.nota<5&&Math.round(s.nota)>=5) obs.push("L'arrodoniment puja a 5 una nota de "+s.nota.toFixed(1)+': decidir la nota final');
+  if(s.nota==null) obs.push('Sense nota global');
+  return obs.length?obs.join('. '):'-';
+}
+function buildDetallTab_(sh,students,classe,RCAPS,RNAMES,dateStr){
+  var n=students.length, FR=5, LR=FR+n-1, AR=LR+1, COLS=17;
+  sh.setFrozenRows(4); sh.setFrozenColumns(1);
+  sh.getRange(1,1,1,COLS).merge().setValue('DETALL INDIVIDUAL PER CAPACITATS CLAU I SEGUIMENT — CLASSE '+classe)
+    .setBackground('#1E293B').setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(15).setHorizontalAlignment('center');
+  sh.getRange(2,1,1,COLS).merge().setValue("Desglossament de les 7 Capacitats Clau, mitjana, nota de l'informe i alertes de revisió")
+    .setBackground('#1E293B').setFontColor('#E2E8F0').setFontSize(10);
+  var capHdrs=RCAPS.map(function(cap){return RNAMES[cap];});
+  var allHdrs=['Alumnat'].concat(capHdrs,['Avaluades\n(/7)','Mitjana\nCC','Nota\nInforme','Desviació','Nota Final\n(Sencera)','Nivell Assoliment',"D'acord\namb la nota?",'Capacitats pendents','Observacions']);
+  sh.getRange(4,1,1,COLS).setValues([allHdrs]).setBackground('#334155').setFontColor('#FFFFFF')
+    .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center').setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
+  for(var i=0;i<n;i++){
+    var s=students[i]; var row=FR+i;
+    sh.getRange(row,1).setValue((s.cognom+', '+s.nom).trim()).setHorizontalAlignment('left');
+    RCAPS.forEach(function(cap,ci){
+      var v=s.cells[cap]; sh.getRange(row,2+ci).setValue(v!=null?v:'').setHorizontalAlignment('center');
+    });
+    sh.getRange(row,9).setFormula('=COUNT(B'+row+':H'+row+')').setNumberFormat('0"/7"').setHorizontalAlignment('center');
+    sh.getRange(row,10).setFormula('=IF(I'+row+'=0,"",AVERAGE(B'+row+':H'+row+'))').setNumberFormat('0.00').setHorizontalAlignment('center');
+    sh.getRange(row,11).setValue(s.nota!=null?Number(s.nota.toFixed(1)):'').setNumberFormat('0.0').setHorizontalAlignment('center');
+    sh.getRange(row,12).setFormula('=IF(OR(J'+row+'="",K'+row+'=""),"",K'+row+'-J'+row+')').setNumberFormat('+0.00;-0.00;0.00').setHorizontalAlignment('center');
+    sh.getRange(row,13).setFormula('=IF(K'+row+'="","",ROUND(K'+row+',0))').setHorizontalAlignment('center');
+    sh.getRange(row,14).setFormula('=IF(K'+row+'="","",IF(K'+row+'>=9,"Excel·lent",IF(K'+row+'>=6,"Notable",IF(K'+row+'>=5,"Aprovat","Insuficient"))))').setHorizontalAlignment('center');
+    sh.getRange(row,15).setFormula('=IF(K'+row+'="","Revisar",IF(OR(COUNTIF(B'+row+':H'+row+',"<=2")>0,I'+row+'<=4,ABS(IF(OR(J'+row+'="",K'+row+'=""),0,K'+row+'-J'+row+'))>1,AND(K'+row+'<5,ROUND(K'+row+',0)>=5)),"Revisar","Sí"))').setHorizontalAlignment('center');
+    var pend=RCAPS.filter(function(cap){return s.cells[cap]==null;}).map(function(cap){return RNAMES[cap];});
+    sh.getRange(row,16).setValue(pend.length?pend.join(', '):'Cap').setHorizontalAlignment('left').setWrap(true);
+    sh.getRange(row,17).setValue(buildObservacions_(s,RCAPS,RNAMES)).setHorizontalAlignment('left').setWrap(true);
+    sh.getRange(row,1,1,COLS).setBackground(i%2===0?'#FFFFFF':'#F8FAFC').setFontSize(10);
+  }
+  sh.getRange(AR,1).setValue('MITJANA DEL GRUP').setFontWeight('bold').setBackground('#E2E8F0');
+  for(var c=2;c<=13;c++){var cl=columnToLetter_(c); sh.getRange(AR,c).setFormula('=IF(COUNT('+cl+FR+':'+cl+LR+')=0,"",AVERAGE('+cl+FR+':'+cl+LR+'))').setBackground('#E2E8F0').setFontWeight('bold').setHorizontalAlignment('center');}
+  sh.getRange(AR,14,1,4).setBackground('#E2E8F0'); sh.getRange(AR,1,1,COLS).setFontSize(10);
+  sh.setColumnWidth(1,160); for(var cc=2;cc<=8;cc++) sh.setColumnWidth(cc,80);
+  sh.setColumnWidth(9,70);sh.setColumnWidth(10,75);sh.setColumnWidth(11,75);sh.setColumnWidth(12,80);sh.setColumnWidth(13,75);sh.setColumnWidth(14,105);sh.setColumnWidth(15,85);sh.setColumnWidth(16,190);sh.setColumnWidth(17,240);
+  var rules=[], capR=sh.getRange(FR,2,n,7);
+  [[1,2,'#FEE2E2','#991B1B'],[3,5,'#FEF3C7','#92400E'],[6,8,'#DBEAFE','#1E40AF'],[9,10,'#DCFCE7','#166534']].forEach(function(x){rules.push(sh.newConditionalFormatRule().whenNumberBetween(x[0],x[1]).setBackground(x[2]).setFontColor(x[3]).setRanges([capR]).build());});
+  var nR=sh.getRange(FR,14,n);
+  [['Excel·lent','#DCFCE7','#166534'],['Notable','#DBEAFE','#1E40AF'],['Aprovat','#FEF3C7','#92400E'],['Insuficient','#FEE2E2','#991B1B']].forEach(function(x){rules.push(sh.newConditionalFormatRule().whenTextEqualTo(x[0]).setBackground(x[1]).setFontColor(x[2]).setRanges([nR]).build());});
+  var oR=sh.getRange(FR,15,n);
+  rules.push(sh.newConditionalFormatRule().whenTextEqualTo('Sí').setBackground('#DCFCE7').setFontColor('#166534').setRanges([oR]).build());
+  rules.push(sh.newConditionalFormatRule().whenTextEqualTo('Revisar').setBackground('#FEF3C7').setFontColor('#92400E').setRanges([oR]).build());
+  sh.setConditionalFormatRules(rules);
+}
+function buildResumTab_(sh,students,classe,RCAPS,RNAMES,dateStr,detallName){
+  var n=students.length, dq="'"+detallName+"'", FR=5, LR=FR+n-1;
+  var kR=dq+'!K'+FR+':K'+LR, oRef=dq+'!O'+FR+':O'+LR;
+  var capCols={c1:'B',c3:'C',c5:'D',c4:'E',c2:'F',c6:'G',c7:'H'};
+  sh.getRange(1,1,1,12).merge().setValue('INFORME DE SEGUIMENT DE CAPACITATS CLAU — CLASSE '+classe)
+    .setBackground('#1E293B').setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(15).setHorizontalAlignment('center');
+  sh.getRange(2,1,1,12).merge().setValue("Data de l'informe: "+dateStr+" | Font: EAS CC | Anàlisi global del grup i per capacitat")
+    .setBackground('#1E293B').setFontColor('#E2E8F0').setFontSize(10);
+  sh.getRange(4,1,1,12).merge().setValue('Indicadors generals del grup').setBackground('#E2E8F0').setFontColor('#1E293B').setFontWeight('bold').setFontSize(11);
+  sh.getRange(5,1,1,12).setValues([['Alumnat avaluat','','Mitjana global cicle','','Mediana global cicle','','Nota mín.','Nota màx.','% Aprovats (≥ 5,0)','','Casos per revisar','']])
+    .setBackground('#F8FAFC').setFontColor('#64748B').setFontSize(9).setHorizontalAlignment('center');
+  sh.getRange('A5:B5').merge(); sh.getRange('C5:D5').merge(); sh.getRange('E5:F5').merge(); sh.getRange('I5:J5').merge(); sh.getRange('K5:L5').merge();
+  sh.getRange('A6:B6').merge().setFormula('=COUNT('+kR+')').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange('C6:D6').merge().setFormula('=IFERROR(AVERAGE('+kR+'),"")').setNumberFormat('0.00').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange('E6:F6').merge().setFormula('=IFERROR(MEDIAN('+kR+'),"")').setNumberFormat('0.00').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange('G6').setFormula('=IFERROR(MIN('+kR+'),"")').setNumberFormat('0.0').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange('H6').setFormula('=IFERROR(MAX('+kR+'),"")').setNumberFormat('0.0').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange('I6:J6').merge().setFormula('=IFERROR(COUNTIF('+kR+',">=5")/COUNT('+kR+'),0)').setNumberFormat('0.0%').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange('K6:L6').merge().setFormula('=COUNTIF('+oRef+',"Revisar")').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange(8,1,1,12).merge().setValue('Anàlisi per capacitat clau').setBackground('#E2E8F0').setFontColor('#1E293B').setFontWeight('bold').setFontSize(11);
+  sh.getRange(9,1,1,12).setValues([['Capacitat Clau','Avaluats','Pendents','% Cobertura','Mitjana Grup','Mediana','Mínima','Màxima','Excel·lent\n(9-10)','Notable\n(6-8)','Aprovat\n(3-5)','Insuficient\n(1-2)']])
+    .setBackground('#334155').setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center').setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
+  RCAPS.forEach(function(cap,ci){
+    var row=10+ci, col=capCols[cap], cR=dq+'!'+col+FR+':'+col+LR;
+    sh.getRange(row,1).setValue(RNAMES[cap]).setFontWeight('bold');
+    sh.getRange(row,2).setFormula('=COUNT('+cR+')').setHorizontalAlignment('center');
+    sh.getRange(row,3).setFormula('=COUNTBLANK('+cR+')').setHorizontalAlignment('center');
+    sh.getRange(row,4).setFormula('=IFERROR(B'+row+'/(B'+row+'+C'+row+'),0)').setNumberFormat('0.0%').setHorizontalAlignment('center');
+    sh.getRange(row,5).setFormula('=IF(B'+row+'=0,"—",IFERROR(AVERAGE('+cR+'),"—"))').setNumberFormat('0.00').setHorizontalAlignment('center');
+    sh.getRange(row,6).setFormula('=IF(B'+row+'=0,"—",IFERROR(MEDIAN('+cR+'),"—"))').setNumberFormat('0.00').setHorizontalAlignment('center');
+    sh.getRange(row,7).setFormula('=IF(B'+row+'=0,"—",IFERROR(MIN('+cR+'),"—"))').setHorizontalAlignment('center');
+    sh.getRange(row,8).setFormula('=IF(B'+row+'=0,"—",IFERROR(MAX('+cR+'),"—"))').setHorizontalAlignment('center');
+    sh.getRange(row,9).setFormula('=COUNTIFS('+cR+',">=9")').setBackground('#DCFCE7').setFontColor('#166534').setHorizontalAlignment('center');
+    sh.getRange(row,10).setFormula('=COUNTIFS('+cR+',">=6",'+cR+',"<9")').setBackground('#DBEAFE').setFontColor('#1E40AF').setHorizontalAlignment('center');
+    sh.getRange(row,11).setFormula('=COUNTIFS('+cR+',">=3",'+cR+',"<6")').setBackground('#FEF3C7').setFontColor('#92400E').setHorizontalAlignment('center');
+    sh.getRange(row,12).setFormula('=COUNTIFS('+cR+',">=1",'+cR+',"<3")').setBackground('#FEE2E2').setFontColor('#991B1B').setHorizontalAlignment('center');
+    sh.getRange(row,1,1,8).setBackground(ci%2===0?'#FFFFFF':'#F8FAFC').setFontSize(10);
+    sh.getRange(row,9,1,4).setFontSize(10);
+  });
+  sh.getRange(17,1,1,12).setBackground('#E2E8F0').setFontWeight('bold');
+  sh.getRange(17,1).setValue('MITJANA / TOTAL CAPACITATS');
+  sh.getRange(17,2).setFormula('=IFERROR(AVERAGE(B10:B16),"")').setHorizontalAlignment('center');
+  sh.getRange(17,3).setFormula('=IFERROR(AVERAGE(C10:C16),"")').setHorizontalAlignment('center');
+  sh.getRange(17,4).setFormula('=IFERROR(AVERAGE(D10:D16),"")').setNumberFormat('0.0%').setHorizontalAlignment('center');
+  sh.getRange(17,5).setFormula('=IFERROR(AVERAGEIF(E10:E16,"<>—"),"")').setNumberFormat('0.00').setHorizontalAlignment('center');
+  sh.getRange(17,6).setFormula('=IFERROR(AVERAGEIF(F10:F16,"<>—"),"")').setNumberFormat('0.00').setHorizontalAlignment('center');
+  sh.getRange(17,7).setFormula('=IFERROR(MINIFS(G10:G16,G10:G16,"<>—"),"")').setHorizontalAlignment('center');
+  sh.getRange(17,8).setFormula('=IFERROR(MAXIFS(H10:H16,H10:H16,"<>—"),"")').setHorizontalAlignment('center');
+  for(var c=9;c<=12;c++) sh.getRange(17,c).setFormula('=SUM('+columnToLetter_(c)+'10:'+columnToLetter_(c)+'16)').setHorizontalAlignment('center');
+  var low=RCAPS.filter(function(cap){var av=students.filter(function(s){return s.cells[cap]!=null;}).length; return av/n<0.5;})
+    .map(function(cap){var av=students.filter(function(s){return s.cells[cap]!=null;}).length; return RNAMES[cap]+' ('+av+'/'+n+' alumnes)';});
+  if(low.length) sh.getRange(18,1,1,12).merge().setValue('⚠ Cobertura baixa: '+low.join(', ')+'. Les seves estadístiques són poc representatives.').setFontColor('#92400E').setBackground('#FEF3C7').setWrap(true).setFontSize(10);
+  var b3=low.length?19:18, b3h=b3+1, totRow=b3h+5;
+  sh.getRange(b3,1,1,12).merge().setValue('Distribució nota global de cicle').setBackground('#E2E8F0').setFontColor('#1E293B').setFontWeight('bold').setFontSize(11);
+  sh.getRange(b3h,1,1,4).setValues([['Franja de qualificació','Rang','Núm. alumnes','% del grup']]).setBackground('#334155').setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center');
+  [['Excel·lent','9,0 – 10,0','=COUNTIF('+kR+',">=9")','#DCFCE7','#166534'],
+   ['Notable','6,0 – 8,9','=COUNTIFS('+kR+',">=6",'+kR+',"<9")','#DBEAFE','#1E40AF'],
+   ['Aprovat','5,0 – 5,9','=COUNTIFS('+kR+',">=5",'+kR+',"<6")','#FEF3C7','#92400E'],
+   ['Insuficient','< 5,0','=COUNTIF('+kR+',"<5")','#FEE2E2','#991B1B']].forEach(function(b,bi){
+    var row=b3h+1+bi;
+    sh.getRange(row,1).setValue(b[0]).setBackground(b[3]).setFontColor(b[4]).setFontWeight('bold').setHorizontalAlignment('center');
+    sh.getRange(row,2).setValue(b[1]).setBackground(bi%2===0?'#FFFFFF':'#F8FAFC').setHorizontalAlignment('center');
+    sh.getRange(row,3).setFormula(b[2]).setBackground(bi%2===0?'#FFFFFF':'#F8FAFC').setHorizontalAlignment('center');
+    sh.getRange(row,4).setFormula('=IFERROR(C'+row+'/A6,0)').setNumberFormat('0.0%').setBackground(bi%2===0?'#FFFFFF':'#F8FAFC').setHorizontalAlignment('center');
+  });
+  sh.getRange(totRow,1).setValue('TOTAL GRUP AVALUAT').setFontWeight('bold').setBackground('#E2E8F0').setHorizontalAlignment('center');
+  sh.getRange(totRow,2).setValue('0,0 – 10,0').setBackground('#E2E8F0').setHorizontalAlignment('center');
+  sh.getRange(totRow,3).setFormula('=SUM(C'+(b3h+1)+':C'+(b3h+4)+')').setFontWeight('bold').setBackground('#E2E8F0').setHorizontalAlignment('center');
+  sh.getRange(totRow,4).setFormula('=SUM(D'+(b3h+1)+':D'+(b3h+4)+')').setNumberFormat('0.0%').setFontWeight('bold').setBackground('#E2E8F0').setHorizontalAlignment('center');
+  sh.setColumnWidth(1,180); sh.setColumnWidth(2,90); sh.setColumnWidth(3,90); sh.setColumnWidth(4,100);
+  sh.setColumnWidth(5,100); sh.setColumnWidth(6,90); sh.setColumnWidth(7,80); sh.setColumnWidth(8,80);
+  for(var cc=9;cc<=12;cc++) sh.setColumnWidth(cc,90);
+}
+function generateBuidatgeSheet_(p){
+  var classe=String(p.classe||'').trim(); if(!classe) throw new Error('Cal especificar una classe.');
+  var data=getClassGlobalResum_({classe:classe});
+  if(!data.students||!data.students.length) throw new Error('Cap alumne amb dades per exportar.');
+  var RCAPS=['c1','c3','c5','c4','c2','c6','c7'];
+  var RNAMES={c1:'Organització',c3:'Responsabilitat',c5:'Treball en equip',c4:'Autonomia',c2:'Iniciativa',c6:'Relacions personals',c7:'Resolució de problemes'};
+  var today=new Date();
+  var dateStr=today.getDate()+'/'+(today.getMonth()+1)+'/'+today.getFullYear();
+  var dateISO=Utilities.formatDate(today,Session.getScriptTimeZone(),'yyyy-MM-dd');
+  var ss=SpreadsheetApp.create('Seguiment CC - Classe '+classe+' - '+dateISO);
+  var detallName='Detall Alumnat (7 CC)', resumName='Resum Grup ('+classe+')';
+  var detallSh=ss.getActiveSheet(); detallSh.setName(detallName);
+  var resumSh=ss.insertSheet(resumName,0);
+  buildDetallTab_(detallSh,data.students,classe,RCAPS,RNAMES,dateStr);
+  buildResumTab_(resumSh,data.students,classe,RCAPS,RNAMES,dateStr,detallName);
+  DriveApp.getFileById(ss.getId()).setSharing(DriveApp.Access.ANYONE_WITH_LINK,DriveApp.Permission.EDIT);
+  return ss.getUrl();
 }
 
