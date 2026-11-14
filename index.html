@@ -674,7 +674,7 @@ async function exportAlumnesPDF(anon){
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error generant el resum.');
   var d=r.data;
   if(!d.students||!d.students.length) return showError('Cap alumne amb dades per exportar.');
-  if(anon) d=Object.assign({},d,{students:d.students.map(function(s,i){return Object.assign({},s,{cognom:'Alum '+(i+1),nom:''});})});
+  if(anon) d=Object.assign({},d,{students:d.students.map(function(s){return Object.assign({},s,{cognom:''});})});
   var e2=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
   var RCAPS=['c1','c3','c5','c4','c2','c6','c7'];
   var RNAMES={c1:'Organització',c3:'Responsabilitat',c5:'Treball en equip',c4:'Autonomia',c2:'Iniciativa',c6:'Relacions personals',c7:'Resolució de problemes'};
