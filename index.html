@@ -661,7 +661,6 @@ async function alumnesLoad(){
     '<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-bottom:10px">'+
       '<button class="btn sm ghost" onclick="exportAlumnesPDF(false)">↓ Exportar PDF individual</button>'+
       '<button class="btn sm ghost" onclick="exportAlumnesPDF(true)" style="color:var(--accent);border-color:var(--accent)">↓ PDF anonimitzat</button>'+
-      '<button class="btn sm ghost" onclick="exportBuidatge()" style="color:var(--success,#3FB27F);border-color:var(--success,#3FB27F)">↗ Buidatge</button>'+
     '</div>'+
     '<div class="panel" style="overflow:auto"><table>'+
     '<thead><tr><th>Alumne</th><th>Classe</th></tr></thead>'+
@@ -744,18 +743,6 @@ async function exportAlumnesPDF(anon){
   w.document.write(html); w.document.close(); w.focus();
   setTimeout(function(){w.print();},400);
 }
-async function exportBuidatge(){
-  var classe=state.alumnesClasse; if(!classe) return;
-  toast('Generant full de seguiment… pot trigar uns segons.');
-  var r;
-  try { r=await call('generateBuidatgeSheet',{classe:classe}); }
-  catch(e){ return showError('Error de connexió: '+(e&&e.message?e.message:String(e))); }
-  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error generant el full de seguiment.');
-  if(!r.url) return showError('El backend no ha retornat cap URL. Comprova que code.gs s\'ha redesployed.');
-  var w=window.open(r.url,'_blank');
-  if(!w) showError('El navegador ha bloquejat la finestra emergent. Obre manualment: '+r.url);
-}
-
 /* ====================== EVIDÈNCIES REALITZADES ====================== */
 async function renderEvidencies(){
   $('content').innerHTML='<h2 class="page-title">Historial</h2><p class="page-sub">Registres del mòdul. Pots editar-los o eliminar-los.</p><div id="evTop"></div><div id="evBody"></div>';
