@@ -707,7 +707,7 @@ async function exportAlumnesPDF(anon){
       '<div class="top-bar"><div class="cc-badge">CC</div>'+
       '<div><div style="font-size:20px;font-weight:700">Resum de les CC</div>'+
       '<div style="font-size:13px;color:#6b7280;margin-top:3px">Classe '+e2(classe)+'</div></div></div>'+
-      '<div style="font-size:18px;font-weight:700;margin-bottom:18px">'+e2(s.cognom)+', '+e2(s.nom)+'</div>'+
+      '<div style="font-size:18px;font-weight:700;margin-bottom:18px">'+(s.cognom?e2(s.cognom)+', ':'')+e2(s.nom)+'</div>'+
       '<div class="body-grid">'+
         '<div>'+svg+'</div>'+
         '<div>'+
