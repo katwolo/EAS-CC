@@ -514,7 +514,7 @@ function _exportPPT_unused(){
   pptx.writeFile({fileName:(A.code||A.id)+' - '+A.title+'.pptx'});
   }catch(e){alert('Error PPT: '+e.message+'\n'+e.stack);}
 }
-function openById(id){const k=D.acts.findIndex(a=>a.id===id||a.code===id||a.code===id.toUpperCase());if(k>=0)open(k);}
+function openById(id){let k=D.acts.findIndex(a=>a.id===id||a.code===id||a.code===id.toUpperCase());if(k<0&&/^b\d+$/i.test(id)){const n=parseInt(id.slice(1))-1;const pb=D.acts.map((a,i)=>({a,i})).filter(({a})=>a.group!==0&&a.group!=null);if(n>=0&&n<pb.length){k=pb[n].i;const tg=document.getElementById('planbBtn');if(tg&&!tg.classList.contains('on'))tg.click();}}if(k>=0)open(k);}
 return {mount,openById,close:()=>{A=null;}};
 })();
 
