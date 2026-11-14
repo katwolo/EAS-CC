@@ -747,8 +747,11 @@ async function exportAlumnesPDF(anon){
 async function exportBuidatge(){
   var classe=state.alumnesClasse; if(!classe) return;
   toast('Generant full de seguiment… pot trigar uns segons.');
-  var r=await call('generateBuidatgeSheet',{classe:classe});
+  var r;
+  try { r=await call('generateBuidatgeSheet',{classe:classe}); }
+  catch(e){ return showError('Error de connexió: '+(e&&e.message?e.message:String(e))); }
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error generant el full de seguiment.');
+  if(!r.url) return showError('El backend no ha retornat cap URL. Comprova que code.gs s\'ha redesployed.');
   var w=window.open(r.url,'_blank');
   if(!w) showError('El navegador ha bloquejat la finestra emergent. Obre manualment: '+r.url);
 }
