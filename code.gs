@@ -400,7 +400,7 @@ function saveRegistre_(p){
     if(arr.some(function(x){return x!=='';})) newNotes[row]=arr;
   });
   var newBlock={ projNum:String(p.projecteNum||''), projNom:String(p.projecteNom||''),
-    activitat:String(p.activitat||''), data:String(p.data||''),
+    activitat:String(p.activitat||''), data:String(p.data||''), grup:(p.grup!=null?Number(p.grup):null),
     inds:inds.map(function(ind){ var capId=ind.capacitatId||capOf_(ind.codi);
       return { codi:ind.codi, cap:ind.capacitat||CAP_NOMS[capId]||'', capId:capId, text:ind.text||'',
         colorInd:(ind.colorInd?ind.colorInd.replace('#',''):(CAP_SOFT[capId]||'FFFFFF')) }; }),
@@ -485,7 +485,7 @@ function readBlocks_(sheet, withNotes){
     }
     if(w===0){ c++; continue; }
     var act=String(sheet.getRange(T.rAct,c).getValue()).trim();
-    var actName=act.split('  ·  ')[0]; var data=act.indexOf('·')>-1?(act.split('  ·  ')[1]||'').trim():'';
+    var actParts=act.split('  ·  '); var actName=actParts[0]; var data=(actParts[1]||'').trim(); var grupRaw=(actParts[2]||'').trim(); var blkGrup=(/^G\d+$/.test(grupRaw))?parseInt(grupRaw.slice(1)):null;
     var projNum=(proj.match(/Projecte\s*([^\s·]+)/)||[])[1]||'';
     var projNom=(proj.split('·')[1]||'').trim();
     var inds=[], carryCap='';
@@ -503,7 +503,7 @@ function readBlocks_(sheet, withNotes){
         if(any) notes[T.rosterRow+ri]=arr;
       }
     }
-    blocks.push({ startCol:c, width:w, projNum:projNum, projNom:projNom, activitat:actName, data:data, inds:inds, notes:notes });
+    blocks.push({ startCol:c, width:w, projNum:projNum, projNom:projNom, activitat:actName, data:data, grup:blkGrup, inds:inds, notes:notes });
     c=c+w;
   }
   return blocks;
@@ -544,7 +544,7 @@ function writeBlocks_(sheet, blocks){
   blocks.forEach(function(b){
     var w=b.inds.length; if(!w) return;
     setMerge_(sheet, T.rProj, col, w, 'Projecte '+b.projNum+(b.projNom?(' · '+b.projNom):''), 'FFF2CC', true);
-    setMerge_(sheet, T.rAct,  col, w, b.activitat+(b.data?('  ·  '+b.data):''), 'EFEFEF', false);
+    setMerge_(sheet, T.rAct,  col, w, b.activitat+(b.data?('  ·  '+b.data):'')+(b.grup!=null?('  ·  G'+b.grup):''), 'EFEFEF', false);
     var g=0;
     while(g<w){
       var capId=b.inds[g].capId||capByName_(b.inds[g].cap)||capOf_(b.inds[g].codi||'');
@@ -697,7 +697,7 @@ function getBlockDetail_(p){
   var mrow=moduleRow_(p.moduleCodi); var curs=mrow?normVal_(mrow[CONFIG.cols.moduls.curs]):'';
   var mnom=mrow?String(mrow[CONFIG.cols.moduls.nom]):String(p.moduleCodi);
   return { startCol:blk.startCol, classeLetter:p.classeLetter, classe:curs+String(p.classeLetter), curs:curs, moduleNom:mnom,
-    projNum:blk.projNum, projNom:blk.projNom, activitat:blk.activitat, data:blk.data, grades:grades };
+    projNum:blk.projNum, projNom:blk.projNom, activitat:blk.activitat, data:blk.data, grup:blk.grup!=null?blk.grup:null, grades:grades };
 }
 function deleteRegistre_(p){
   var ss=openModule_(p.moduleCodi); var sh=ss.getSheetByName(modTabName_(p.moduleCodi, p.classeLetter));

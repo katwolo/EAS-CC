@@ -783,6 +783,7 @@ async function editBlock(mc,letter,startCol){
   state.curs=d.curs; state.classe=d.classe; state.module={codi:mc,nom:d.moduleNom||mc};
   state.projecte={num:d.projNum,nom:d.projNom}; state.activity=d.activitat; state.data=d.data;
   state.grades=d.grades; state.curInd=0; state.step=6;
+  state.grup=(d.grup!=null)?d.grup:null; state.hasGrups=(d.grup!=null);
   go('registrar');
 }
 
