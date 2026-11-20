@@ -383,9 +383,7 @@ function enterApp(){
 function showAvisosBanner(avisos){
   var old=$('avisosBanner'); if(old) old.parentNode.removeChild(old);
   if(!avisos||!avisos.length) return;
-  var uid=state.user&&(state.user.username||state.user.id||'');
-  var stKey='eascc_read_avisos'+(uid?'_'+uid:'');
-  var readIds=[]; try{ readIds=JSON.parse(localStorage.getItem(stKey)||'[]'); }catch(e){}
+  var readIds=(state.user&&state.user.avisos_llegits)||[];
   var unseen=avisos.filter(function(a){ return readIds.indexOf(String(a.id))===-1; });
   if(!unseen.length) return;
   var shown=unseen.slice(0,5);
@@ -408,12 +406,12 @@ function showAvisosBanner(avisos){
     +'</div>';
   document.body.appendChild(overlay);
   document.getElementById('avisosBannerOk').addEventListener('click',function(){
-    try{
-      var cur=[]; try{ cur=JSON.parse(localStorage.getItem(stKey)||'[]'); }catch(e){}
-      shown.forEach(function(a){ var sid=String(a.id); if(cur.indexOf(sid)===-1) cur.push(sid); });
-      localStorage.setItem(stKey,JSON.stringify(cur));
-    }catch(e){}
+    var shownIds=shown.map(function(a){return String(a.id);});
+    // Actualitza l'estat local immediatament
+    if(state.user) state.user.avisos_llegits=(state.user.avisos_llegits||[]).concat(shownIds);
     var b=document.getElementById('avisosBanner'); if(b) b.parentNode.removeChild(b);
+    // Desa al Sheets en segon pla (no bloqueja la UI)
+    call('markAvisosLlegits',{ids:shownIds, username:state.user&&state.user.username}).catch(function(){});
   });
 }
 function buildNav(){

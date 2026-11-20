@@ -22,7 +22,7 @@ var CONFIG = {
   },
   cols: {
     usuaris:   { id:'id', nom:'nom', cognom:'cognom', correu:'correu corporatiu',
-                 username:'username', password:'password', rol:'rol', classe:'classe', moduls:'mòdul', pendents:'pendents', noMat:'no matriculat', desdoblaments:'desdoblaments', resetRequest:'reset request', resets:'resets', pwdTemp:'pwd_temp', pwdTempTs:'pwd_temp_ts' },
+                 username:'username', password:'password', rol:'rol', classe:'classe', moduls:'mòdul', pendents:'pendents', noMat:'no matriculat', desdoblaments:'desdoblaments', resetRequest:'reset request', resets:'resets', pwdTemp:'pwd_temp', pwdTempTs:'pwd_temp_ts', avisosLlegits:'avisos_llegits' },
     moduls:    { codi:'Codi', nom:'Mòdul', curs:'Curs', sheetId:'ID' },
     actInd:    { activitat:'Activitat', capacitat:'Capacitats Clau', indicador:'Indicadors', codi:'Codi Indicador', color:'Codi color', paraules:'paraules clau' },
     indicadors:{ codi:'codi', capacitatId:'capacitatId', capacitat:'capacitat', requisit:'requisit', text:'indicador_SABER_FER', colorCap:'colorCapacitat', colorInd:'colorIndicador' }
@@ -127,6 +127,7 @@ function handleRequest(action, payload) {
       case 'requestPasswordReset':  return { ok:true, done: requestPasswordReset_(payload) };
       case 'saveAvis':              return { ok:true, done: saveAvis_(payload) };
       case 'getAvisos':             return { ok:true, avisos: getAvisos_(payload) };
+      case 'markAvisosLlegits':     return { ok:true, done: markAvisosLlegits_(payload) };
       // admin: desdoblaments
       case 'checkModulGrups':       return { ok:true, data: checkModulGrups_(payload) };
       case 'getDesdoblaments':      return { ok:true, data: getDesdoblaments_(payload) };
@@ -188,9 +189,10 @@ function loginUser_(p){
     if(String(u[c.username]).trim()!==username) continue;
     // Contrasenya real
     if(String(u[c.password])===password){
+      var al_=String(u[c.avisosLlegits]||'').trim(); var alArr_=al_?al_.split(',').map(function(x){return x.trim();}).filter(Boolean):[];
       return { id:String(u[c.id]), nom:String(u[c.nom]), cognom:String(u[c.cognom]), correu:String(u[c.correu]||''),
         username:String(u[c.username]), rol:String(u[c.rol]), classe:String(u[c.classe]||''), moduls:parseModuls_(u[c.moduls]),
-        mustChangePassword: String(u[c.password])==='1234' };
+        mustChangePassword: String(u[c.password])==='1234', avisos_llegits:alArr_ };
     }
     // Contrasenya temporal (caduca a les 24h)
     var tmpPwd=String(u[c.pwdTemp]||'').trim();
@@ -207,9 +209,10 @@ function loginUser_(p){
         if(tmpCol>0) sh.getRange(u2.__row,tmpCol).setValue('');
         if(tsCol>0) sh.getRange(u2.__row,tsCol).setValue('');
       });
+      var al2_=String(u[c.avisosLlegits]||'').trim(); var alArr2_=al2_?al2_.split(',').map(function(x){return x.trim();}).filter(Boolean):[];
       return { id:String(u[c.id]), nom:String(u[c.nom]), cognom:String(u[c.cognom]), correu:String(u[c.correu]||''),
         username:String(u[c.username]), rol:String(u[c.rol]), classe:String(u[c.classe]||''), moduls:parseModuls_(u[c.moduls]),
-        mustChangePassword: true };
+        mustChangePassword: true, avisos_llegits:alArr2_ };
     }
     // Usuari trobat però contrasenya incorrecta
     throw new Error('Usuari o contrasenya incorrectes.');
@@ -1317,6 +1320,28 @@ function getAvisos_(p){
     out.push({ id:String(v[i][iId]||''), text:String(v[i][iText]||''), rols:rols, data:String(v[i][iData]||''), autor:String(v[i][iAutor]||'') });
   }
   return out.reverse(); // més recent primer
+}
+
+function markAvisosLlegits_(p){
+  var username=String((p.user&&p.user.username)||p.username||'').trim();
+  if(!username) throw new Error('Usuari no identificat.');
+  var newIds=(p.ids||[]).map(function(x){return String(x).trim();}).filter(Boolean);
+  if(!newIds.length) return true;
+  var c=CONFIG.cols.usuaris;
+  bustMain_('usuaris');
+  var data=readMain_('usuaris');
+  var alCol=colIndex_(data.headers,c.avisosLlegits);
+  if(alCol<1) return true; // columna no existeix encara, no fa res
+  var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
+  data.rows.forEach(function(u){
+    if(String(u[c.username]).trim()!==username) return;
+    var current=String(u[c.avisosLlegits]||'').trim();
+    var arr=current?current.split(',').map(function(x){return x.trim();}).filter(Boolean):[];
+    newIds.forEach(function(id){ if(arr.indexOf(id)<0) arr.push(id); });
+    sh.getRange(u.__row,alCol).setValue(arr.join(','));
+  });
+  bustMain_('usuaris');
+  return true;
 }
 
 /* ============== GESTIÓ DE DESDOBLAMENTS (ADMIN) ============== */
