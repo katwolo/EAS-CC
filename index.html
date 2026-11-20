@@ -1506,7 +1506,7 @@ async function doSendAvis(btn){
   var r=await call('saveAvis',{text:text.trim(),rols:rols,autor:autor});
   btnFree_(btn);
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error enviant el missatge.');
-  toast('Missatge enviat a '+r.done.sent+' usuaris.');
+  toast('Missatge desat. Apareixerà als usuaris quan entrin.');
   $('avisText').value='';
   loadAvisHistorial();
 }

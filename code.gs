@@ -1299,33 +1299,7 @@ function saveAvis_(p){
   var id='avis_'+now.getTime();
   var dateStr=Utilities.formatDate(now,Session.getScriptTimeZone(),'dd/MM/yyyy HH:mm');
   sh.appendRow([id,text,rols.join(','),dateStr,autor,'']);
-  // Envia correu a tots els usuaris dels rols indicats
-  var c=CONFIG.cols.usuaris;
-  var users=readMain_('usuaris').rows;
-  var sent=[], errors=[];
-  users.forEach(function(u){
-    var rol=String(u[c.rol]||'').trim();
-    if(rols.indexOf(rol)<0) return;
-    var correu=String(u[c.correu]||'').trim();
-    if(!correu) return;
-    var nom=String(u[c.nom]||'').trim();
-    var htmlBody='<div style="font-family:sans-serif;font-size:14px;color:#222;line-height:1.6">'
-      +'<p>Hola '+nom+',</p>'
-      +'<p>Tens un missatge nou a l\'EAS CC:</p>'
-      +'<blockquote style="border-left:4px solid #4F8EF7;margin:12px 0;padding:8px 16px;background:#f0f4ff;color:#222">'+text+'</blockquote>'
-      +'<p style="color:#888;font-size:12px">Enviat per '+autor+' el '+dateStr+'</p>'
-      +'</div>';
-    try{
-      MailApp.sendEmail({to:correu,subject:'Missatge EAS CC: '+text.substring(0,60),htmlBody:htmlBody});
-      sent.push(correu);
-    }catch(e){ errors.push(correu+': '+String(e&&e.message?e.message:e)); }
-  });
-  // Marca com a enviat
-  var rows=sh.getDataRange().getValues();
-  for(var i=1;i<rows.length;i++){
-    if(rows[i][0]===id){ sh.getRange(i+1,6).setValue(sent.length+' enviats'); break; }
-  }
-  return { id:id, sent:sent.length, errors:errors };
+  return { id:id };
 }
 function getAvisos_(p){
   var rol=String((p.user&&p.user.rol)||p.rol||'').trim();
