@@ -22,7 +22,7 @@ var CONFIG = {
   },
   cols: {
     usuaris:   { id:'id', nom:'nom', cognom:'cognom', correu:'correu corporatiu',
-                 username:'username', password:'password', rol:'rol', classe:'classe', moduls:'mòdul', pendents:'pendents', noMat:'no matriculat', desdoblaments:'desdoblaments', resetRequest:'reset request' },
+                 username:'username', password:'password', rol:'rol', classe:'classe', moduls:'mòdul', pendents:'pendents', noMat:'no matriculat', desdoblaments:'desdoblaments', resetRequest:'reset request', resets:'resets' },
     moduls:    { codi:'Codi', nom:'Mòdul', curs:'Curs', sheetId:'ID' },
     actInd:    { activitat:'Activitat', capacitat:'Capacitats Clau', indicador:'Indicadors', codi:'Codi Indicador', color:'Codi color', paraules:'paraules clau' },
     indicadors:{ codi:'codi', capacitatId:'capacitatId', capacitat:'capacitat', requisit:'requisit', text:'indicador_SABER_FER', colorCap:'colorCapacitat', colorInd:'colorIndicador' }
@@ -951,7 +951,7 @@ function getAdminUsers_(){
     var obj={id:String(u[c.id]),nom:String(u[c.nom]),cognom:String(u[c.cognom]),
       username:String(u[c.username]),rol:String(u[c.rol]),classe:String(u[c.classe]||''),
       correu:String(u[c.correu]||''), modulsCodes:String(u[c.moduls]||''),
-      moduls:moduls, resetRequest:String(u[c.resetRequest]||'')};
+      moduls:moduls, resetRequest:String(u[c.resetRequest]||''), resets:parseInt(String(u[c.resets]||'0'))||0};
     var r=String(u[c.rol]);
     if(r==='admin') admins.push(obj);
     else if(r==='professor') professors.push(obj);
@@ -1131,6 +1131,12 @@ function requestPasswordReset_(p){
     sh.getRange(u.__row,pwCol).setValue('1234');
     // Desa el timestamp de sol·licitud (per seguiment admin)
     if(rrCol>=0) sh.getRange(u.__row,rrCol).setValue(nowStr);
+    // Incrementa el comptador de restabliments
+    var resetsCol=colIndex_(data.headers,c.resets);
+    if(resetsCol>=0){
+      var prev=parseInt(String(u[c.resets]||'0'))||0;
+      sh.getRange(u.__row,resetsCol).setValue(prev+1);
+    }
     found=true;
     // Envia correu directament a l'usuari
     var correu=String(u[c.correu]||'').trim();

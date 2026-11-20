@@ -1431,20 +1431,26 @@ async function doDeleteUser(btn,uid){
 }
 function renderAdminAvisosTab(ad){
   var tots=(ad.admins||[]).concat(ad.professors||[]).concat(ad.alumnes||[]);
+  var withResets=tots.filter(function(u){return u.resets>0||u.resetRequest;});
   var pending=tots.filter(function(u){return u.resetRequest;});
-  if(!pending.length){
-    $('adminBody').innerHTML='<div class="empty">No hi ha sol·licituds pendents.</div>';
+  if(!withResets.length){
+    $('adminBody').innerHTML='<div class="empty">No hi ha sol·licituds pendents ni historial de restabliments.</div>';
     return;
   }
-  var rows=pending.map(function(u){
+  var rows=withResets.map(function(u){
+    var badge=u.resets>0?'<span style="display:inline-block;min-width:22px;padding:1px 6px;border-radius:10px;background:var(--accent);color:#fff;font-size:11px;font-weight:700;text-align:center">'+u.resets+'</span>':'—';
+    var lastReset=u.resetRequest?('<span style="font-size:12px;color:var(--muted)">'+esc(u.resetRequest)+'</span>'):'<span style="color:var(--muted);font-size:12px">—</span>';
     return '<tr><td>'+esc(u.cognom)+', '+esc(u.nom)+'</td>'+
       '<td class="mono" style="font-size:12px">'+esc(u.username)+'</td>'+
-      '<td class="muted" style="font-size:12px;white-space:nowrap">'+esc(u.resetRequest)+'</td>'+
+      '<td style="text-align:center">'+badge+'</td>'+
+      '<td>'+lastReset+'</td>'+
       '<td style="text-align:right"><button class="btn sm" onclick=\'openResetPwd('+j({id:u.id,nom:u.nom,cognom:u.cognom,username:u.username})+')\'">Restablir</button></td></tr>';
   }).join('');
+  var pendentInfo=pending.length?('<div style="margin-bottom:10px;font-size:13px;color:var(--accent);font-weight:600">'+pending.length+' sol·licitud'+(pending.length>1?'s':'')+' pendent'+(pending.length>1?'s':'')+'</div>'):'';
   $('adminBody').innerHTML=
     '<div class="panel" style="padding:6px 8px;overflow:auto">'+
-    '<table><thead><tr><th>Nom</th><th>Usuari</th><th>Sol·licitud</th><th></th></tr></thead>'+
+    (pendentInfo?'<div style="padding:8px 8px 0">'+pendentInfo+'</div>':'')+
+    '<table><thead><tr><th>Nom</th><th>Usuari</th><th style="text-align:center">Restabliments</th><th>Últim restabliment</th><th></th></tr></thead>'+
     '<tbody>'+rows+'</tbody></table></div>';
 }
 function renderAdminMissatgesTab(){
