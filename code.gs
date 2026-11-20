@@ -22,7 +22,7 @@ var CONFIG = {
   },
   cols: {
     usuaris:   { id:'id', nom:'nom', cognom:'cognom', correu:'correu corporatiu',
-                 username:'username', password:'password', rol:'rol', classe:'classe', moduls:'mòdul', pendents:'pendents', noMat:'no matriculat', desdoblaments:'desdoblaments', resetRequest:'reset request', resets:'resets' },
+                 username:'username', password:'password', rol:'rol', classe:'classe', moduls:'mòdul', pendents:'pendents', noMat:'no matriculat', desdoblaments:'desdoblaments', resetRequest:'reset request', resets:'resets', pwdTemp:'pwd_temp', pwdTempTs:'pwd_temp_ts' },
     moduls:    { codi:'Codi', nom:'Mòdul', curs:'Curs', sheetId:'ID' },
     actInd:    { activitat:'Activitat', capacitat:'Capacitats Clau', indicador:'Indicadors', codi:'Codi Indicador', color:'Codi color', paraules:'paraules clau' },
     indicadors:{ codi:'codi', capacitatId:'capacitatId', capacitat:'capacitat', requisit:'requisit', text:'indicador_SABER_FER', colorCap:'colorCapacitat', colorInd:'colorIndicador' }
@@ -177,17 +177,42 @@ function openModule_(codi){
 }
 
 /* ========================= LOGIN ========================= */
+function genTempPwd_(){ var chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; var r=''; for(var i=0;i<8;i++) r+=chars.charAt(Math.floor(Math.random()*chars.length)); return r; }
 function loginUser_(p){
   var username=String(p.username||'').trim(), password=String(p.password||'');
   if(!username) throw new Error('Cal indicar l\'usuari.');
   var c=CONFIG.cols.usuaris;
   var rows=readMainCached_('usuaris').rows;
+  var TWENTY_FOUR_H=24*60*60*1000;
   for(var i=0;i<rows.length;i++){ var u=rows[i];
-    if(String(u[c.username]).trim()===username && String(u[c.password])===password){
+    if(String(u[c.username]).trim()!==username) continue;
+    // Contrasenya real
+    if(String(u[c.password])===password){
       return { id:String(u[c.id]), nom:String(u[c.nom]), cognom:String(u[c.cognom]), correu:String(u[c.correu]||''),
         username:String(u[c.username]), rol:String(u[c.rol]), classe:String(u[c.classe]||''), moduls:parseModuls_(u[c.moduls]),
         mustChangePassword: String(u[c.password])==='1234' };
     }
+    // Contrasenya temporal (caduca a les 24h)
+    var tmpPwd=String(u[c.pwdTemp]||'').trim();
+    var tmpTs=parseInt(String(u[c.pwdTempTs]||'0'))||0;
+    if(tmpPwd && tmpPwd===password && tmpTs && (Date.now()-tmpTs)<TWENTY_FOUR_H){
+      // Temp vàlida: restableix la real a 1234, esborra els camps temporals i força canvi
+      bustMain_('usuaris');
+      var data2=readMain_('usuaris'); var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
+      var pwCol=colIndex_(data2.headers,c.password);
+      var tmpCol=colIndex_(data2.headers,c.pwdTemp);
+      var tsCol=colIndex_(data2.headers,c.pwdTempTs);
+      data2.rows.forEach(function(u2){ if(String(u2[c.username]).trim()!==username) return;
+        if(pwCol>0) sh.getRange(u2.__row,pwCol).setValue('1234');
+        if(tmpCol>0) sh.getRange(u2.__row,tmpCol).setValue('');
+        if(tsCol>0) sh.getRange(u2.__row,tsCol).setValue('');
+      });
+      return { id:String(u[c.id]), nom:String(u[c.nom]), cognom:String(u[c.cognom]), correu:String(u[c.correu]||''),
+        username:String(u[c.username]), rol:String(u[c.rol]), classe:String(u[c.classe]||''), moduls:parseModuls_(u[c.moduls]),
+        mustChangePassword: true };
+    }
+    // Usuari trobat però contrasenya incorrecta
+    throw new Error('Usuari o contrasenya incorrectes.');
   }
   throw new Error('Usuari o contrasenya incorrectes.');
 }
@@ -1117,18 +1142,21 @@ function requestPasswordReset_(p){
   var c=CONFIG.cols.usuaris;
   bustMain_('usuaris');
   var data=readMain_('usuaris');
-  var pwCol=colIndex_(data.headers,c.password);
   var rrCol=colIndex_(data.headers,c.resetRequest);
-  if(pwCol<0) throw new Error('No s\'ha trobat la columna password al full Usuaris.');
+  var tmpCol=colIndex_(data.headers,c.pwdTemp);
+  var tsCol=colIndex_(data.headers,c.pwdTempTs);
   var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name); var found=false;
   var now=new Date();
   var dd=now.getDate(),mm=now.getMonth()+1,yy=now.getFullYear(),hh=now.getHours(),mi=now.getMinutes();
   var nowStr=(dd<10?'0':'')+dd+'/'+(mm<10?'0':'')+mm+'/'+yy+' '+(hh<10?'0':'')+hh+':'+(mi<10?'0':'')+mi;
+  var tempPwd=genTempPwd_();
   var mailError=null;
   data.rows.forEach(function(u){
     if(String(u[c.username]).trim()!==String(p.username||'').trim()) return;
-    // Restableix la contrasenya a 1234
-    sh.getRange(u.__row,pwCol).setValue('1234');
+    found=true;
+    // Desa contrasenya temporal i timestamp (NO toca la contrasenya real)
+    if(tmpCol>0) sh.getRange(u.__row,tmpCol).setValue(tempPwd);
+    if(tsCol>0) sh.getRange(u.__row,tsCol).setValue(String(Date.now()));
     // Desa el timestamp de sol·licitud (per seguiment admin)
     if(rrCol>=0) sh.getRange(u.__row,rrCol).setValue(nowStr);
     // Incrementa el comptador de restabliments
@@ -1137,20 +1165,19 @@ function requestPasswordReset_(p){
       var prev=parseInt(String(u[c.resets]||'0'))||0;
       sh.getRange(u.__row,resetsCol).setValue(prev+1);
     }
-    found=true;
-    // Envia correu directament a l'usuari
+    // Envia correu amb la contrasenya temporal
     var correu=String(u[c.correu]||'').trim();
     var nom=String(u[c.nom]||'').trim();
     if(correu){
       var htmlBody='<div style="font-family:sans-serif;font-size:14px;color:#222;line-height:1.6">'
         +'<p>Hola '+nom+',</p>'
         +'<p>Has sol·licitat restablir la contrasenya de l\'EAS CC.</p>'
-        +'<p>La teva contrasenya s\'ha restablert a la inicial: <strong>1234</strong>.</p>'
-        +'<p>Quan entris, l\'aplicació et demanarà que triïs una contrasenya nova.</p>'
-        +'<p>Si no has fet aquesta sol·licitud, contacta amb l\'administrador.</p>'
+        +'<p>La teva contrasenya temporal és: <strong style="font-size:18px;letter-spacing:.1em">'+tempPwd+'</strong></p>'
+        +'<p>Aquesta contrasenya caduca en <strong>24 hores</strong>. Quan entris, l\'aplicació et demanarà que triïs una contrasenya nova.</p>'
+        +'<p>Si no has fet aquesta sol·licitud, ignora aquest correu: la teva contrasenya actual no ha canviat.</p>'
         +'<p>Salutacions,</p>'
         +'</div>';
-      try{ MailApp.sendEmail({to:correu,subject:'Restabliment de contrasenya EAS CC',htmlBody:htmlBody}); }
+      try{ MailApp.sendEmail({to:correu,subject:'Contrasenya temporal EAS CC',htmlBody:htmlBody}); }
       catch(e){ mailError=String(e&&e.message?e.message:e); }
     }
   });
