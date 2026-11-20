@@ -85,7 +85,7 @@ function handleRequest(action, payload) {
   try {
     switch (action) {
       case 'ping':                  return { ok:true, msg:'pong' };
-      case 'loginAndInit':          var li_=loginAndInit_(payload); return { ok:true, user:li_.user, initialData:li_.initialData };
+      case 'loginAndInit':          var li_=loginAndInit_(payload); return { ok:true, user:li_.user, initialData:li_.initialData, avisos:li_.avisos||[] };
       case 'getInitialData':        return { ok:true, initialData: getInitialData_(payload) };
       case 'login':                 return { ok:true, user: loginUser_(payload) };
       case 'getCourses':            return { ok:true, courses: getCourses_(payload) };
