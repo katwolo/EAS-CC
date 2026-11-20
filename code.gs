@@ -17,7 +17,8 @@ var CONFIG = {
     usuaris:    { name:'Usuaris', headerRow:1 },
     moduls:     { name:'Mòduls', headerRow:1 },
     actInd:     { name:'Activitats -> Indicadors', headerRow:1 },
-    indicadors: { name:'Indicadors', headerRow:1 }
+    indicadors: { name:'Indicadors', headerRow:1 },
+    avisos:     { name:'Avisos', headerRow:1 }
   },
   cols: {
     usuaris:   { id:'id', nom:'nom', cognom:'cognom', correu:'correu corporatiu',
@@ -124,6 +125,8 @@ function handleRequest(action, payload) {
       case 'resetPassword':         return { ok:true, done: resetPassword_(payload) };
       case 'changePassword':        return { ok:true, done: changePassword_(payload) };
       case 'requestPasswordReset':  return { ok:true, done: requestPasswordReset_(payload) };
+      case 'saveAvis':              return { ok:true, done: saveAvis_(payload) };
+      case 'getAvisos':             return { ok:true, avisos: getAvisos_(payload) };
       // admin: desdoblaments
       case 'checkModulGrups':       return { ok:true, data: checkModulGrups_(payload) };
       case 'getDesdoblaments':      return { ok:true, data: getDesdoblaments_(payload) };
@@ -1223,6 +1226,72 @@ function removeResetTrigger(){
   Logger.log('Trigger eliminat.');
 }
 
+/* ============== MISSATGES MASSIUS (AVISOS) ============== */
+function ensureAvisosSheet_(){
+  var ss=getSS_(); var name=CONFIG.sheets.avisos.name;
+  var sh=ss.getSheetByName(name);
+  if(!sh){
+    sh=ss.insertSheet(name);
+    sh.getRange(1,1,1,6).setValues([['id','text','rols','data','autor','enviat_email']]);
+    sh.getRange(1,1,1,6).setFontWeight('bold');
+  }
+  return sh;
+}
+function saveAvis_(p){
+  var text=String(p.text||'').trim(); if(!text) throw new Error('El text del missatge no pot estar buit.');
+  var rols=(p.rols||[]).filter(Boolean); if(!rols.length) throw new Error('Cal seleccionar almenys un rol destinatari.');
+  var autor=String(p.autor||'admin');
+  var sh=ensureAvisosSheet_();
+  var now=new Date();
+  var id='avis_'+now.getTime();
+  var dateStr=Utilities.formatDate(now,Session.getScriptTimeZone(),'dd/MM/yyyy HH:mm');
+  sh.appendRow([id,text,rols.join(','),dateStr,autor,'']);
+  // Envia correu a tots els usuaris dels rols indicats
+  var c=CONFIG.cols.usuaris;
+  var users=readMain_('usuaris').rows;
+  var sent=[], errors=[];
+  users.forEach(function(u){
+    var rol=String(u[c.rol]||'').trim();
+    if(rols.indexOf(rol)<0) return;
+    var correu=String(u[c.correu]||'').trim();
+    if(!correu) return;
+    var nom=String(u[c.nom]||'').trim();
+    var htmlBody='<div style="font-family:sans-serif;font-size:14px;color:#222;line-height:1.6">'
+      +'<p>Hola '+nom+',</p>'
+      +'<p>Tens un missatge nou a l\'EAS CC:</p>'
+      +'<blockquote style="border-left:4px solid #4F8EF7;margin:12px 0;padding:8px 16px;background:#f0f4ff;color:#222">'+text+'</blockquote>'
+      +'<p style="color:#888;font-size:12px">Enviat per '+autor+' el '+dateStr+'</p>'
+      +'</div>';
+    try{
+      MailApp.sendEmail({to:correu,subject:'Missatge EAS CC: '+text.substring(0,60),htmlBody:htmlBody});
+      sent.push(correu);
+    }catch(e){ errors.push(correu+': '+String(e&&e.message?e.message:e)); }
+  });
+  // Marca com a enviat
+  var rows=sh.getDataRange().getValues();
+  for(var i=1;i<rows.length;i++){
+    if(rows[i][0]===id){ sh.getRange(i+1,6).setValue(sent.length+' enviats'); break; }
+  }
+  return { id:id, sent:sent.length, errors:errors };
+}
+function getAvisos_(p){
+  var rol=String((p.user&&p.user.rol)||p.rol||'').trim();
+  var sh; try{ sh=getSS_().getSheetByName(CONFIG.sheets.avisos.name); }catch(e){ return []; }
+  if(!sh) return [];
+  var v=sh.getDataRange().getValues();
+  if(v.length<2) return [];
+  var headers=v[0].map(function(h){return String(h).trim();});
+  var iId=headers.indexOf('id'), iText=headers.indexOf('text'), iRols=headers.indexOf('rols'),
+      iData=headers.indexOf('data'), iAutor=headers.indexOf('autor');
+  var out=[];
+  for(var i=1;i<v.length;i++){
+    var rols=String(v[i][iRols]||'').split(',').map(function(r){return r.trim();}).filter(Boolean);
+    if(rol&&rols.indexOf(rol)<0) continue;
+    out.push({ id:String(v[i][iId]||''), text:String(v[i][iText]||''), rols:rols, data:String(v[i][iData]||''), autor:String(v[i][iAutor]||'') });
+  }
+  return out.reverse(); // més recent primer
+}
+
 /* ============== GESTIÓ DE DESDOBLAMENTS (ADMIN) ============== */
 function checkModulGrups_(p){
   var c=CONFIG.cols.usuaris; var classe=String(p.classe||'').trim(); var moduleCodi=normVal_(p.moduleCodi);
@@ -1559,7 +1628,8 @@ function loginAndInit_(p) {
   if(user.rol==='alumne'){
     try{ var cc=readClassesConfig_(); user.historialEnabled=!!(cc[user.classe]); }catch(e){ user.historialEnabled=false; }
   }
-  return { user:user, initialData:getInitialData_({user:user}) };
+  var avisos=[]; try{ avisos=getAvisos_({user:user}); }catch(e){}
+  return { user:user, initialData:getInitialData_({user:user}), avisos:avisos };
 }
 
 function createModuleSheets() {

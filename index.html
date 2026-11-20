@@ -359,6 +359,7 @@ async function doLogin(username,password){
   if(r.initialData){ var d=r.initialData;
     state._courses=d.courses; state._modsByCurs=d.modsByCurs;
     state._allModules=d.allModules; state._allClasses=d.allClasses; state._capabilities=d.capabilities; }
+  state._avisos=r.avisos||[];
   state.device=resolveDevice(); enterApp();
 }
 function formLogin(){doLogin($('u').value.trim(),$('p').value);}
@@ -374,9 +375,25 @@ function enterApp(){
   var fab=$('helpFab'); if(fab) fab.style.display=(u.rol==='alumne')?'none':'flex';
   if(u.mustChangePassword){ renderForceChangePassword(); return; }
   buildNav();
+  showAvisosBanner(state._avisos||[]);
   var mobileOnly=(state.device==='mobile');
   var defaultView=(u.rol==='admin')?'usuaris':(u.rol==='alumne')?'alumneresum':(mobileOnly?'registrar':'inici');
   go(defaultView);
+}
+function showAvisosBanner(avisos){
+  var old=$('avisosBanner'); if(old) old.parentNode.removeChild(old);
+  if(!avisos||!avisos.length) return;
+  var items=avisos.slice(0,5).map(function(a){
+    return '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.15);font-size:14px">'+esc(a.text)+'<span style="font-size:11px;opacity:.7;margin-left:8px">'+esc(a.data)+'</span></div>';
+  }).join('');
+  var banner=document.createElement('div');
+  banner.id='avisosBanner';
+  banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9000;background:var(--accent,#4F8EF7);color:#fff;padding:10px 16px 8px;box-shadow:0 2px 8px rgba(0,0,0,.18)';
+  banner.innerHTML='<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">'+
+    '<div><div style="font-weight:700;margin-bottom:4px;font-size:13px;text-transform:uppercase;letter-spacing:.06em">Missatge</div>'+items+'</div>'+
+    '<button onclick="var b=document.getElementById(\'avisosBanner\');if(b)b.parentNode.removeChild(b)" style="background:none;border:none;color:#fff;font-size:20px;line-height:1;cursor:pointer;padding:0 4px;flex-shrink:0">✕</button>'+
+  '</div>';
+  document.body.insertBefore(banner, document.body.firstChild);
 }
 function buildNav(){
   if(state.user&&state.user.rol==='admin'){
@@ -1271,6 +1288,7 @@ async function renderUsuaris(){
       '<button class="btn sm '+(state.adminTab==='classes'?'':'ghost')+'" onclick="setAdminTab(\'classes\')">Classes</button>'+
       '<button class="btn sm '+(state.adminTab==='desdoblaments'?'':'ghost')+'" onclick="setAdminTab(\'desdoblaments\')">Desdoblaments</button>'+
       '<button class="btn sm '+(state.adminTab==='avisos'?'':'ghost')+'" id="tabAvisos" onclick="setAdminTab(\'avisos\')">Avisos</button>'+
+      '<button class="btn sm '+(state.adminTab==='missatges'?'':'ghost')+'" onclick="setAdminTab(\'missatges\')">Missatges</button>'+
     '</div>'+
     '<div id="adminBody"><div class="empty">Carregant…</div></div>';
   var r=await call('getAdminUsers');
@@ -1281,6 +1299,7 @@ async function renderUsuaris(){
   if(state.adminTab==='usuaris') renderAdminUsuarisTab(ad);
   else if(state.adminTab==='classes') renderAdminClassesTab();
   else if(state.adminTab==='desdoblaments') renderAdminDesdoblTab(ad);
+  else if(state.adminTab==='missatges') renderAdminMissatgesTab();
   else renderAdminAvisosTab(ad);
 }
 function setAdminTab(t){ state.adminTab=t; renderUsuaris(); }
@@ -1427,6 +1446,56 @@ function renderAdminAvisosTab(ad){
     '<div class="panel" style="padding:6px 8px;overflow:auto">'+
     '<table><thead><tr><th>Nom</th><th>Usuari</th><th>Sol·licitud</th><th></th></tr></thead>'+
     '<tbody>'+rows+'</tbody></table></div>';
+}
+function renderAdminMissatgesTab(){
+  $('adminBody').innerHTML=
+    '<div class="panel" style="padding:16px">'+
+      '<h3 style="margin:0 0 12px">Envia un missatge massiu</h3>'+
+      '<label>Missatge</label>'+
+      '<textarea id="avisText" class="field" rows="4" placeholder="Escriu el missatge…" style="width:100%;resize:vertical"></textarea>'+
+      '<label style="margin-top:12px;display:block">Destinataris</label>'+
+      '<div class="row" style="gap:16px;margin-top:4px">'+
+        '<label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer"><input type="checkbox" id="avisProf" checked> Professorat</label>'+
+        '<label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer"><input type="checkbox" id="avisAlum"> Alumnat</label>'+
+      '</div>'+
+      '<button class="btn" style="margin-top:16px" onclick="doSendAvis(this)">Enviar missatge</button>'+
+    '</div>'+
+    '<div id="avisHistorial" style="margin-top:16px"><div class="empty">Carregant historial…</div></div>';
+  loadAvisHistorial();
+}
+async function loadAvisHistorial(){
+  var r=await call('getAvisos',{rol:''});
+  if(!r||!r.ok||!r.avisos||!r.avisos.length){
+    $('avisHistorial').innerHTML='<div class="empty">No hi ha missatges enviats.</div>'; return;
+  }
+  var rows=r.avisos.map(function(a){
+    return '<tr><td style="max-width:300px;white-space:normal">'+esc(a.text)+'</td>'+
+      '<td style="font-size:12px">'+esc((a.rols||[]).join(', '))+'</td>'+
+      '<td style="font-size:12px;white-space:nowrap">'+esc(a.data)+'</td>'+
+      '<td style="font-size:12px;color:var(--muted)">'+esc(a.autor)+'</td></tr>';
+  }).join('');
+  $('avisHistorial').innerHTML=
+    '<div class="panel" style="padding:6px 8px;overflow:auto">'+
+    '<div style="font-weight:600;padding:8px;font-size:13px">Historial de missatges enviats</div>'+
+    '<table><thead><tr><th>Missatge</th><th>Rols</th><th>Data</th><th>Autor</th></tr></thead>'+
+    '<tbody>'+rows+'</tbody></table></div>';
+}
+async function doSendAvis(btn){
+  if(btn&&btn.disabled) return;
+  var text=($('avisText')||{}).value||'';
+  if(!text.trim()) return showError('Escriu un missatge.');
+  var rols=[];
+  if($('avisProf')&&$('avisProf').checked) rols.push('professor');
+  if($('avisAlum')&&$('avisAlum').checked) rols.push('alumne');
+  if(!rols.length) return showError('Selecciona almenys un tipus de destinatari.');
+  btnBusy_(btn,'Enviant…');
+  var autor=(state.user&&(state.user.nom+' '+state.user.cognom).trim())||'admin';
+  var r=await call('saveAvis',{text:text.trim(),rols:rols,autor:autor});
+  btnFree_(btn);
+  if(!r||!r.ok) return showError(r&&r.error?r.error:'Error enviant el missatge.');
+  toast('Missatge enviat a '+r.done.sent+' usuaris.');
+  $('avisText').value='';
+  loadAvisHistorial();
 }
 async function renderAdminDesdoblTab(ad){
   var classes=[]; var seen={};
