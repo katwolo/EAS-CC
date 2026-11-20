@@ -383,7 +383,13 @@ function enterApp(){
 function showAvisosBanner(avisos){
   var old=$('avisosBanner'); if(old) old.parentNode.removeChild(old);
   if(!avisos||!avisos.length) return;
-  var items=avisos.slice(0,5).map(function(a){
+  var uid=state.user&&(state.user.username||state.user.id||'');
+  var stKey='eascc_read_avisos'+(uid?'_'+uid:'');
+  var readIds=[]; try{ readIds=JSON.parse(localStorage.getItem(stKey)||'[]'); }catch(e){}
+  var unseen=avisos.filter(function(a){ return readIds.indexOf(String(a.id))===-1; });
+  if(!unseen.length) return;
+  var shown=unseen.slice(0,5);
+  var items=shown.map(function(a){
     return '<div style="padding:14px 0;border-bottom:1px solid var(--border,#e5e7eb)">'
       +'<div style="font-size:15px;line-height:1.5;color:var(--text,#111)">'+avisFmt(a.text)+'</div>'
       +'<div style="font-size:11px;color:var(--muted,#888);margin-top:4px">'+esc(a.autor)+' · '+esc(a.data)+'</div>'
@@ -398,9 +404,17 @@ function showAvisosBanner(avisos){
     +'<div style="font-weight:700;font-size:17px;color:var(--text,#111)">📢 Missatge de l\'equip</div>'
     +'</div>'
     +items
-    +'<div style="text-align:right;margin-top:16px"><button class="btn" onclick="var b=document.getElementById(\'avisosBanner\');if(b)b.parentNode.removeChild(b)">Entès</button></div>'
+    +'<div style="text-align:right;margin-top:16px"><button class="btn" id="avisosBannerOk">Entès</button></div>'
     +'</div>';
   document.body.appendChild(overlay);
+  document.getElementById('avisosBannerOk').addEventListener('click',function(){
+    try{
+      var cur=[]; try{ cur=JSON.parse(localStorage.getItem(stKey)||'[]'); }catch(e){}
+      shown.forEach(function(a){ var sid=String(a.id); if(cur.indexOf(sid)===-1) cur.push(sid); });
+      localStorage.setItem(stKey,JSON.stringify(cur));
+    }catch(e){}
+    var b=document.getElementById('avisosBanner'); if(b) b.parentNode.removeChild(b);
+  });
 }
 function buildNav(){
   if(state.user&&state.user.rol==='admin'){
