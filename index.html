@@ -1276,7 +1276,7 @@ async function doRequestResetFromLogin(){
   if(!username.trim()) return showError('Introdueix el teu nom d\'usuari per sol·licitar el restabliment.');
   var r=await call('requestPasswordReset',{username:username.trim()});
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error enviant la sol·licitud.');
-  clearError(); setPing('Sol·licitud registrada. L\'administrador restablirà la teva contrasenya en breu.');
+  clearError(); setPing('Contrasenya restablerta. Comprova el teu correu corporatiu per accedir.');
 }
 
 /* ====================== ADMIN: GESTIÓ D'USUARIS ====================== */

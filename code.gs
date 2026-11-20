@@ -1114,22 +1114,42 @@ function changePassword_(p){
   return true;
 }
 function requestPasswordReset_(p){
-  // Escriu el timestamp a la columna M. El trigger checkPendingResets_
-  // s'encarrega d'enviar el correu als admins quan detecta canvis.
   var c=CONFIG.cols.usuaris;
   bustMain_('usuaris');
-  var data=readMain_('usuaris'); var col=colIndex_(data.headers,c.resetRequest);
-  if(col<0) throw new Error('No s\'ha trobat la columna reset request al full Usuaris.');
+  var data=readMain_('usuaris');
+  var pwCol=colIndex_(data.headers,c.password);
+  var rrCol=colIndex_(data.headers,c.resetRequest);
+  if(pwCol<0) throw new Error('No s\'ha trobat la columna password al full Usuaris.');
   var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name); var found=false;
   var now=new Date();
   var dd=now.getDate(),mm=now.getMonth()+1,yy=now.getFullYear(),hh=now.getHours(),mi=now.getMinutes();
   var nowStr=(dd<10?'0':'')+dd+'/'+(mm<10?'0':'')+mm+'/'+yy+' '+(hh<10?'0':'')+hh+':'+(mi<10?'0':'')+mi;
+  var mailError=null;
   data.rows.forEach(function(u){
-    if(String(u[c.username]).trim()===String(p.username||'').trim()){
-      sh.getRange(u.__row,col).setValue(nowStr); found=true;
+    if(String(u[c.username]).trim()!==String(p.username||'').trim()) return;
+    // Restableix la contrasenya a 1234
+    sh.getRange(u.__row,pwCol).setValue('1234');
+    // Desa el timestamp de sol·licitud (per seguiment admin)
+    if(rrCol>=0) sh.getRange(u.__row,rrCol).setValue(nowStr);
+    found=true;
+    // Envia correu directament a l'usuari
+    var correu=String(u[c.correu]||'').trim();
+    var nom=String(u[c.nom]||'').trim();
+    if(correu){
+      var htmlBody='<div style="font-family:sans-serif;font-size:14px;color:#222;line-height:1.6">'
+        +'<p>Hola '+nom+',</p>'
+        +'<p>Has sol·licitat restablir la contrasenya de l\'EAS CC.</p>'
+        +'<p>La teva contrasenya s\'ha restablert a la inicial: <strong>1234</strong>.</p>'
+        +'<p>Quan entris, l\'aplicació et demanarà que triïs una contrasenya nova.</p>'
+        +'<p>Si no has fet aquesta sol·licitud, contacta amb l\'administrador.</p>'
+        +'<p>Salutacions,</p>'
+        +'</div>';
+      try{ MailApp.sendEmail({to:correu,subject:'Restabliment de contrasenya EAS CC',htmlBody:htmlBody}); }
+      catch(e){ mailError=String(e&&e.message?e.message:e); }
     }
   });
   if(!found) throw new Error('No s\'ha trobat cap usuari amb aquest nom d\'usuari.');
+  if(mailError) Logger.log('Error enviant correu reset a usuari: '+mailError);
   return true;
 }
 
