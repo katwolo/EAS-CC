@@ -384,16 +384,23 @@ function showAvisosBanner(avisos){
   var old=$('avisosBanner'); if(old) old.parentNode.removeChild(old);
   if(!avisos||!avisos.length) return;
   var items=avisos.slice(0,5).map(function(a){
-    return '<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.15);font-size:14px">'+esc(a.text)+'<span style="font-size:11px;opacity:.7;margin-left:8px">'+esc(a.data)+'</span></div>';
+    return '<div style="padding:14px 0;border-bottom:1px solid var(--border,#e5e7eb)">'
+      +'<div style="font-size:15px;line-height:1.5;color:var(--text,#111)">'+esc(a.text)+'</div>'
+      +'<div style="font-size:11px;color:var(--muted,#888);margin-top:4px">'+esc(a.autor)+' · '+esc(a.data)+'</div>'
+      +'</div>';
   }).join('');
-  var banner=document.createElement('div');
-  banner.id='avisosBanner';
-  banner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:9000;background:var(--accent,#4F8EF7);color:#fff;padding:10px 16px 8px;box-shadow:0 2px 8px rgba(0,0,0,.18)';
-  banner.innerHTML='<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">'+
-    '<div><div style="font-weight:700;margin-bottom:4px;font-size:13px;text-transform:uppercase;letter-spacing:.06em">Missatge</div>'+items+'</div>'+
-    '<button onclick="var b=document.getElementById(\'avisosBanner\');if(b)b.parentNode.removeChild(b)" style="background:none;border:none;color:#fff;font-size:20px;line-height:1;cursor:pointer;padding:0 4px;flex-shrink:0">✕</button>'+
-  '</div>';
-  document.body.insertBefore(banner, document.body.firstChild);
+  var overlay=document.createElement('div');
+  overlay.id='avisosBanner';
+  overlay.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+  overlay.innerHTML=
+    '<div style="background:var(--card,#fff);border-radius:12px;max-width:480px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.22);padding:24px 24px 16px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'
+    +'<div style="font-weight:700;font-size:17px;color:var(--text,#111)">📢 Missatge de l\'equip</div>'
+    +'</div>'
+    +items
+    +'<div style="text-align:right;margin-top:16px"><button class="btn" onclick="var b=document.getElementById(\'avisosBanner\');if(b)b.parentNode.removeChild(b)">Entès</button></div>'
+    +'</div>';
+  document.body.appendChild(overlay);
 }
 function buildNav(){
   if(state.user&&state.user.rol==='admin'){
