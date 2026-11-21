@@ -2185,8 +2185,42 @@ function drawRadar(canvas, values, color, pointColors){
 }
 function hexA(hex,a){hex=hex.replace('#','');var r=parseInt(hex.substr(0,2),16),g=parseInt(hex.substr(2,2),16),b=parseInt(hex.substr(4,2),16);return 'rgba('+r+','+g+','+b+','+a+')';}
 initTheme();
+
+/* ── Easter egg: codi secret 170588 ── */
+(function(){
+  var seq='170588', buf='';
+  document.addEventListener('keypress',function(e){
+    if(document.activeElement&&(document.activeElement.tagName==='INPUT'||document.activeElement.tagName==='TEXTAREA')) return;
+    buf+=e.key; if(buf.length>seq.length) buf=buf.slice(-seq.length);
+    if(buf===seq){ buf=''; showCredits_(); }
+  });
+  function showCredits_(){
+    var old=document.getElementById('creditsOverlay'); if(old) old.parentNode.removeChild(old);
+    var o=document.createElement('div');
+    o.id='creditsOverlay';
+    o.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:20px';
+    o.innerHTML='<div style="background:var(--surface,#1e2535);border:1px solid var(--border,#2e3650);border-radius:18px;padding:36px 40px;max-width:480px;width:100%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.6);position:relative">'
+      +'<div style="font-size:36px;margin-bottom:10px">🏫</div>'
+      +'<div style="font-size:22px;font-weight:700;color:var(--text,#e8ecf6);letter-spacing:.02em">EAS CC</div>'
+      +'<div style="font-size:13px;color:var(--accent,#4f8ef7);font-weight:600;margin:4px 0 20px;letter-spacing:.08em;text-transform:uppercase">v2.0</div>'
+      +'<div style="border-top:1px solid var(--border,#2e3650);padding-top:18px;margin-bottom:18px">'
+      +'<div style="font-size:13px;color:var(--muted,#8b93a7);margin-bottom:6px">Creadors</div>'
+      +'<div style="font-size:17px;font-weight:600;color:var(--text,#e8ecf6)">Nau MB &amp; Iván BV</div>'
+      +'<div style="font-size:12px;color:var(--muted,#8b93a7);margin-top:4px">des de juny de 2026</div>'
+      +'</div>'
+      +'<div style="font-size:13px;color:var(--text-2,#b0b8cc);line-height:1.6;font-style:italic;margin-bottom:22px;padding:0 8px">'
+      +'"Més d\'un any forjant les bases del demà: dues mirades, l\'impuls de tot l\'equip EAS i les capacitats clau que ens faran imparables."'
+      +'</div>'
+      +'<div style="font-size:11px;color:var(--muted,#8b93a7);margin-bottom:18px">Google Apps Script · GitHub Pages</div>'
+      +'<button onclick="document.getElementById(\'creditsOverlay\').parentNode.removeChild(document.getElementById(\'creditsOverlay\'))" style="background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;padding:9px 28px;font-size:14px;font-weight:600;cursor:pointer">Tancar</button>'
+      +'</div>';
+    document.body.appendChild(o);
+    o.addEventListener('click',function(e){ if(e.target===o){ o.parentNode.removeChild(o); } });
+  }
+})();
 </script>
 <button id="helpFab" onclick="window.open('help.html','_blank')" title="Guia d'ús per al professorat" aria-label="Ajuda">?</button>
 <div id="exemOverlay"><div id="exemBar"><span id="exemActTitle"></span><div id="exemBarRight"><a id="exemPptBtn" target="_blank" rel="noopener" style="display:none">⬇ PPT</a><button id="exemCloseBtn" onclick="closeExemples()" title="Tancar (Esc)">✕</button></div></div><iframe title="Exemples pràctics" allow="fullscreen"></iframe></div>
+<footer style="text-align:center;padding:14px 20px;font-size:11px;color:var(--muted,#8b93a7);border-top:1px solid var(--border,#2e3650);margin-top:auto">© 2026 Nau MB i Iván BV · Tots els drets reservats</footer>
 </body>
 </html>
