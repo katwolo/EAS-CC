@@ -2198,21 +2198,20 @@ initTheme();
     var old=document.getElementById('creditsOverlay'); if(old) old.parentNode.removeChild(old);
     var o=document.createElement('div');
     o.id='creditsOverlay';
-    o.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:20px';
-    o.innerHTML='<div style="background:var(--surface,#1e2535);border:1px solid var(--border,#2e3650);border-radius:18px;padding:36px 40px;max-width:480px;width:100%;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.6);position:relative">'
-      +'<div style="font-size:36px;margin-bottom:10px">🏫</div>'
-      +'<div style="font-size:22px;font-weight:700;color:var(--text,#e8ecf6);letter-spacing:.02em">EAS CC</div>'
-      +'<div style="font-size:13px;color:var(--accent,#4f8ef7);font-weight:600;margin:4px 0 20px;letter-spacing:.08em;text-transform:uppercase">v2.0</div>'
-      +'<div style="border-top:1px solid var(--border,#2e3650);padding-top:18px;margin-bottom:18px">'
-      +'<div style="font-size:13px;color:var(--muted,#8b93a7);margin-bottom:6px">Creadors</div>'
-      +'<div style="font-size:17px;font-weight:600;color:var(--text,#e8ecf6)">Nau MB &amp; Iván BV</div>'
-      +'<div style="font-size:12px;color:var(--muted,#8b93a7);margin-top:4px">des de juny de 2026</div>'
-      +'</div>'
-      +'<div style="font-size:13px;color:var(--text-2,#b0b8cc);line-height:1.6;font-style:italic;margin-bottom:22px;padding:0 8px">'
+    o.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:20px';
+    o.innerHTML='<div style="background:radial-gradient(ellipse at 65% 25%,#1a2550 0%,#060a14 100%);border:1px solid rgba(79,142,247,.22);border-radius:20px;padding:36px 36px 32px;max-width:400px;width:100%;text-align:center;box-shadow:0 0 0 1px rgba(255,255,255,.04),0 40px 80px rgba(0,0,0,.7);position:relative;overflow:hidden">'
+      +'<div style="position:absolute;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(79,142,247,.18) 0%,transparent 70%);top:-90px;right:-60px;pointer-events:none"></div>'
+      +'<div style="font-size:11px;letter-spacing:6px;color:rgba(79,142,247,.6);margin-bottom:16px">· · · · ·</div>'
+      +'<div style="font-size:32px;font-weight:800;color:#fff;letter-spacing:.02em;margin-bottom:2px">EAS CC</div>'
+      +'<div style="font-size:11px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:rgba(79,142,247,.9);margin-bottom:24px">versió 2.0</div>'
+      +'<div style="border-top:1px solid rgba(79,142,247,.18);margin-bottom:20px"></div>'
+      +'<div style="font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:rgba(255,255,255,.35);margin-bottom:8px">Creadors</div>'
+      +'<div style="font-size:20px;font-weight:700;color:#fff;margin-bottom:4px">Nau MB &amp; Iván BV</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:22px">des de juny de 2026</div>'
+      +'<div style="font-size:12.5px;line-height:1.7;color:rgba(255,255,255,.65);font-style:italic;margin-bottom:26px;border-left:2px solid rgba(79,142,247,.5);padding:2px 14px;text-align:left">'
       +'"Més d\'un any forjant les bases del demà: dues mirades, l\'impuls de tot l\'equip EAS i les capacitats clau que ens faran imparables."'
       +'</div>'
-      +'<div style="font-size:11px;color:var(--muted,#8b93a7);margin-bottom:18px">Google Apps Script · GitHub Pages</div>'
-      +'<button onclick="document.getElementById(\'creditsOverlay\').parentNode.removeChild(document.getElementById(\'creditsOverlay\'))" style="background:var(--accent,#4f8ef7);color:#fff;border:none;border-radius:8px;padding:9px 28px;font-size:14px;font-weight:600;cursor:pointer">Tancar</button>'
+      +'<button onclick="document.getElementById(\'creditsOverlay\').parentNode.removeChild(document.getElementById(\'creditsOverlay\'))" style="background:transparent;border:1px solid rgba(79,142,247,.5);color:rgba(79,142,247,.9);border-radius:8px;padding:10px 32px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:.04em">Tancar</button>'
       +'</div>';
     document.body.appendChild(o);
     o.addEventListener('click',function(e){ if(e.target===o){ o.parentNode.removeChild(o); } });
