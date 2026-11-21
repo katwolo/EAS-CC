@@ -1313,7 +1313,8 @@ async function renderUsuaris(){
   var r=await call('getAdminUsers');
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error carregant usuaris.');
   var ad=r.data;
-  var nAvisos=(ad.admins||[]).concat(ad.professors||[]).concat(ad.alumnes||[]).filter(function(u){return u.resetRequest;}).length;
+  state._adminUsers=[].concat(ad.admins||[]).concat(ad.professors||[]).concat(ad.alumnes||[]);
+  var nAvisos=state._adminUsers.filter(function(u){return u.resetRequest;}).length;
   var tabBtn=$('tabAvisos'); if(tabBtn&&nAvisos) tabBtn.textContent='Avisos ('+nAvisos+')';
   if(state.adminTab==='usuaris') renderAdminUsuarisTab(ad);
   else if(state.adminTab==='classes') renderAdminClassesTab();
@@ -1489,9 +1490,24 @@ function avisInsertFmt(prefix,suffix){
   ta.focus(); ta.selectionStart=s+prefix.length; ta.selectionEnd=s+prefix.length+sel.length;
 }
 function renderAdminMissatgesTab(){
+  // Calcula llista de classes a partir dels alumnes
+  var classes=[]; var seen={};
+  (state._adminUsers||[]).forEach(function(u){ if(u.rol==='alumne'&&u.classe&&!seen[u.classe]){seen[u.classe]=true;classes.push(u.classe);} });
+  classes.sort();
+  // Llista de tots els usuaris (no admin) per targeting individual
+  var usersForTarget=(state._adminUsers||[]).filter(function(u){return u.rol!=='admin';});
+  var classesOpts=classes.map(function(c){
+    return '<label style="display:inline-flex;align-items:center;gap:5px;margin:4px 8px 4px 0;cursor:pointer;font-weight:normal">'
+      +'<input type="checkbox" class="avisClasse" value="'+esc(c)+'"> '+esc(c)+'</label>';
+  }).join('');
+  var usersOpts=usersForTarget.map(function(u){
+    var label=esc(u.cognom)+', '+esc(u.nom)+' <span style="color:var(--muted);font-size:11px">('+esc(u.rol)+(u.classe?' · '+esc(u.classe):'')+')';
+    return '<label style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);cursor:pointer;font-weight:normal" class="avisUserRow">'
+      +'<input type="checkbox" class="avisUser" value="'+esc(u.username)+'"> <span>'+label+'</span></label>';
+  }).join('');
   $('adminBody').innerHTML=
     '<div class="panel" style="padding:16px">'+
-      '<h3 style="margin:0 0 12px">Envia un missatge massiu</h3>'+
+      '<h3 style="margin:0 0 12px">Envia un missatge</h3>'+
       '<label>Missatge</label>'+
       '<div class="row" style="gap:4px;margin-bottom:4px;flex-wrap:wrap">'+
         '<button class="btn sm ghost" onclick="avisInsertFmt(\'**\',\'**\')" title="Negreta"><strong>B</strong></button>'+
@@ -1499,15 +1515,48 @@ function renderAdminMissatgesTab(){
         '<button class="btn sm ghost" onclick="avisInsertFmt(\'\\n- \',\'\')" title="Punt de llista">• Llista</button>'+
       '</div>'+
       '<textarea id="avisText" class="field" rows="5" placeholder="Escriu el missatge… (**negreta**, _cursiva_, - punt de llista)" style="width:100%;resize:vertical;font-family:monospace;font-size:13px"></textarea>'+
-      '<label style="margin-top:12px;display:block">Destinataris</label>'+
-      '<div class="row" style="gap:16px;margin-top:4px">'+
-        '<label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer"><input type="checkbox" id="avisProf" checked> Professorat</label>'+
-        '<label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer"><input type="checkbox" id="avisAlum"> Alumnat</label>'+
+      '<label style="margin-top:14px;display:block">Destinataris</label>'+
+      '<div class="row" style="gap:6px;margin-bottom:12px;flex-wrap:wrap">'+
+        '<button id="avisMode_rol" class="btn sm" onclick="setAvisMode(\'rol\')">Per rol</button>'+
+        '<button id="avisMode_classe" class="btn sm ghost" onclick="setAvisMode(\'classe\')">Per classe</button>'+
+        '<button id="avisMode_individual" class="btn sm ghost" onclick="setAvisMode(\'individual\')">Individualment</button>'+
+      '</div>'+
+      // Panel rol
+      '<div id="avisModePanel_rol">'+
+        '<div class="row" style="gap:16px;margin-top:4px">'+
+          '<label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer"><input type="checkbox" id="avisProf" checked> Professorat</label>'+
+          '<label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer"><input type="checkbox" id="avisAlum"> Alumnat</label>'+
+        '</div>'+
+      '</div>'+
+      // Panel classe
+      '<div id="avisModePanel_classe" style="display:none">'+
+        (classesOpts||'<span style="color:var(--muted);font-size:13px">No hi ha classes disponibles.</span>')+
+      '</div>'+
+      // Panel individual
+      '<div id="avisModePanel_individual" style="display:none">'+
+        '<input id="avisUserFilter" class="field" style="margin-bottom:8px" placeholder="Filtrar per nom o usuari…" oninput="filterAvisUsers(this.value)">'+
+        '<div id="avisUserList" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:0 10px">'+
+          (usersOpts||'<div class="empty">No hi ha usuaris.</div>')+
+        '</div>'+
       '</div>'+
       '<button class="btn" style="margin-top:16px" onclick="doSendAvis(this)">Enviar missatge</button>'+
     '</div>'+
     '<div id="avisHistorial" style="margin-top:16px"><div class="empty">Carregant historial…</div></div>';
   loadAvisHistorial();
+}
+function setAvisMode(mode){
+  ['rol','classe','individual'].forEach(function(m){
+    var btn=$('avisMode_'+m); if(btn){btn.className=m===mode?'btn sm':'btn sm ghost';}
+    var panel=$('avisModePanel_'+m); if(panel) panel.style.display=m===mode?'':'none';
+  });
+}
+function filterAvisUsers(q){
+  q=q.toLowerCase();
+  var rows=document.querySelectorAll('#avisUserList .avisUserRow');
+  rows.forEach(function(row){
+    var txt=row.textContent.toLowerCase();
+    row.style.display=(!q||txt.indexOf(q)>=0)?'':'none';
+  });
 }
 async function loadAvisHistorial(){
   var r=await call('getAvisos',{rol:''});
@@ -1516,16 +1565,25 @@ async function loadAvisHistorial(){
   }
   var items=r.avisos.map(function(a,i){
     var id='avHist'+i;
-    var rolLabel=(a.rols||[]).map(function(r){return r==='professor'?'Professorat':r==='alumne'?'Alumnat':r;}).join(', ');
-    var preview=String(a.text||'').replace(/\*\*|_/g,'').substring(0,60)+(a.text.length>60?'…':'');
+    var destLabel='';
+    if(a.destinataris&&a.destinataris.length){
+      destLabel=a.destinataris.length===1?a.destinataris[0]:a.destinataris.length+' usuaris';
+    } else if(a.classes&&a.classes.length){
+      destLabel='Classe: '+a.classes.join(', ');
+    } else {
+      destLabel=(a.rols||[]).map(function(r){return r==='professor'?'Professorat':r==='alumne'?'Alumnat':r;}).join(', ');
+    }
+    var preview=String(a.text||'').replace(/\*\*|_/g,'').substring(0,60)+(a.text&&a.text.length>60?'…':'');
     return '<div style="border-bottom:1px solid var(--border,#e5e7eb)">'
       +'<button onclick="var c=document.getElementById(\''+id+'\');var o=c.style.display===\'none\';c.style.display=o?\'block\':\'none\';this.querySelector(\'.arr\').textContent=o?\'▲\':\'▼\'" '
       +'style="width:100%;background:none;border:none;text-align:left;padding:10px 8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px">'
         +'<span style="font-size:13px;color:var(--text,#111);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(preview)+'</span>'
-        +'<span style="font-size:11px;color:var(--muted,#888);white-space:nowrap;flex-shrink:0">'+esc(rolLabel)+' · '+esc(a.data)+'</span>'
+        +'<span style="font-size:11px;color:var(--muted,#888);white-space:nowrap;flex-shrink:0">'+esc(destLabel)+' · '+esc(a.data)+'</span>'
         +'<span class="arr" style="font-size:10px;color:var(--muted,#888);flex-shrink:0">▼</span>'
       +'</button>'
-      +'<div id="'+id+'" style="display:none;padding:0 8px 12px;font-size:13px;line-height:1.6;color:var(--text,#111)">'+avisFmt(a.text)+'<div style="margin-top:8px;font-size:11px;color:var(--muted,#888)">Autor: '+esc(a.autor)+'</div></div>'
+      +'<div id="'+id+'" style="display:none;padding:0 8px 12px;font-size:13px;line-height:1.6;color:var(--text,#111)">'+avisFmt(a.text)
+        +'<div style="margin-top:8px;font-size:11px;color:var(--muted,#888)">'+esc(destLabel)+' · '+esc(a.data)+' · Autor: '+esc(a.autor)+'</div>'
+      +'</div>'
       +'</div>';
   }).join('');
   $('avisHistorial').innerHTML=
@@ -1537,13 +1595,24 @@ async function doSendAvis(btn){
   if(btn&&btn.disabled) return;
   var text=($('avisText')||{}).value||'';
   if(!text.trim()) return showError('Escriu un missatge.');
-  var rols=[];
-  if($('avisProf')&&$('avisProf').checked) rols.push('professor');
-  if($('avisAlum')&&$('avisAlum').checked) rols.push('alumne');
-  if(!rols.length) return showError('Selecciona almenys un tipus de destinatari.');
+  // Detecta mode actiu
+  var mode='rol';
+  if($('avisMode_classe')&&!$('avisMode_classe').classList.contains('ghost')) mode='classe';
+  else if($('avisMode_individual')&&!$('avisMode_individual').classList.contains('ghost')) mode='individual';
+  var payload={text:text.trim(), mode:mode, autor:(state.user&&(state.user.nom+' '+state.user.cognom).trim())||'admin', rols:[], classes:[], destinataris:[]};
+  if(mode==='rol'){
+    if($('avisProf')&&$('avisProf').checked) payload.rols.push('professor');
+    if($('avisAlum')&&$('avisAlum').checked) payload.rols.push('alumne');
+    if(!payload.rols.length) return showError('Selecciona almenys un rol.');
+  } else if(mode==='classe'){
+    document.querySelectorAll('.avisClasse:checked').forEach(function(cb){ payload.classes.push(cb.value); });
+    if(!payload.classes.length) return showError('Selecciona almenys una classe.');
+  } else {
+    document.querySelectorAll('.avisUser:checked').forEach(function(cb){ payload.destinataris.push(cb.value); });
+    if(!payload.destinataris.length) return showError('Selecciona almenys un destinatari.');
+  }
   btnBusy_(btn,'Enviant…');
-  var autor=(state.user&&(state.user.nom+' '+state.user.cognom).trim())||'admin';
-  var r=await call('saveAvis',{text:text.trim(),rols:rols,autor:autor});
+  var r=await call('saveAvis',payload);
   btnFree_(btn);
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error enviant el missatge.');
   toast('Missatge desat. Apareixerà als usuaris quan entrin.');

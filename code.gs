@@ -1288,38 +1288,63 @@ function ensureAvisosSheet_(){
   var sh=ss.getSheetByName(name);
   if(!sh){
     sh=ss.insertSheet(name);
-    sh.getRange(1,1,1,6).setValues([['id','text','rols','data','autor','enviat_email']]);
-    sh.getRange(1,1,1,6).setFontWeight('bold');
+    sh.getRange(1,1,1,8).setValues([['id','text','rols','data','autor','enviat_email','classes','destinataris']]);
+    sh.getRange(1,1,1,8).setFontWeight('bold');
+  } else {
+    // Afegeix les noves columnes si no existeixen
+    var headers=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(function(h){return String(h).trim();});
+    if(headers.indexOf('classes')<0){ sh.getRange(1,sh.getLastColumn()+1).setValue('classes').setFontWeight('bold'); }
+    if(headers.indexOf('destinataris')<0){ sh.getRange(1,sh.getLastColumn()+1).setValue('destinataris').setFontWeight('bold'); }
   }
   return sh;
 }
 function saveAvis_(p){
   var text=String(p.text||'').trim(); if(!text) throw new Error('El text del missatge no pot estar buit.');
-  var rols=(p.rols||[]).filter(Boolean); if(!rols.length) throw new Error('Cal seleccionar almenys un rol destinatari.');
+  var mode=String(p.mode||'rol'); // 'rol', 'classe', 'individual'
+  var rols=(p.rols||[]).filter(Boolean);
+  var classes=(p.classes||[]).filter(Boolean);
+  var destinataris=(p.destinataris||[]).filter(Boolean);
+  if(mode==='rol'&&!rols.length) throw new Error('Cal seleccionar almenys un rol destinatari.');
+  if(mode==='classe'&&!classes.length) throw new Error('Cal seleccionar almenys una classe.');
+  if(mode==='individual'&&!destinataris.length) throw new Error('Cal seleccionar almenys un destinatari.');
   var autor=String(p.autor||'admin');
   var sh=ensureAvisosSheet_();
   var now=new Date();
   var id='avis_'+now.getTime();
   var dateStr=Utilities.formatDate(now,Session.getScriptTimeZone(),'dd/MM/yyyy HH:mm');
-  sh.appendRow([id,text,rols.join(','),dateStr,autor,'']);
+  sh.appendRow([id,text,rols.join(','),dateStr,autor,'',classes.join(','),destinataris.join(',')]);
   return { id:id };
 }
 function getAvisos_(p){
-  var rol=String((p.user&&p.user.rol)||p.rol||'').trim();
+  var userRol=String((p.user&&p.user.rol)||p.rol||'').trim();
+  var userClass=String((p.user&&p.user.classe)||'').trim();
+  var username=String((p.user&&p.user.username)||'').trim();
   var sh; try{ sh=getSS_().getSheetByName(CONFIG.sheets.avisos.name); }catch(e){ return []; }
   if(!sh) return [];
   var v=sh.getDataRange().getValues();
   if(v.length<2) return [];
   var headers=v[0].map(function(h){return String(h).trim();});
   var iId=headers.indexOf('id'), iText=headers.indexOf('text'), iRols=headers.indexOf('rols'),
-      iData=headers.indexOf('data'), iAutor=headers.indexOf('autor');
+      iData=headers.indexOf('data'), iAutor=headers.indexOf('autor'),
+      iClasses=headers.indexOf('classes'), iDest=headers.indexOf('destinataris');
   var out=[];
   for(var i=1;i<v.length;i++){
+    var rowId=String(v[i][iId]||''); if(!rowId) continue;
     var rols=String(v[i][iRols]||'').split(',').map(function(r){return r.trim();}).filter(Boolean);
-    if(rol&&rols.indexOf(rol)<0) continue;
-    out.push({ id:String(v[i][iId]||''), text:String(v[i][iText]||''), rols:rols, data:String(v[i][iData]||''), autor:String(v[i][iAutor]||'') });
+    var classesArr=iClasses>=0?String(v[i][iClasses]||'').split(',').map(function(x){return x.trim();}).filter(Boolean):[];
+    var destArr=iDest>=0?String(v[i][iDest]||'').split(',').map(function(x){return x.trim();}).filter(Boolean):[];
+    var show=false;
+    if(destArr.length){
+      show=username&&destArr.indexOf(username)>=0;
+    } else if(classesArr.length){
+      show=userClass&&classesArr.indexOf(userClass)>=0;
+    } else {
+      show=!userRol||!rols.length||rols.indexOf(userRol)>=0;
+    }
+    if(!show) continue;
+    out.push({ id:rowId, text:String(v[i][iText]||''), rols:rols, classes:classesArr, destinataris:destArr, data:String(v[i][iData]||''), autor:String(v[i][iAutor]||'') });
   }
-  return out.reverse(); // més recent primer
+  return out.reverse();
 }
 
 function markAvisosLlegits_(p){
