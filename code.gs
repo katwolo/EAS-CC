@@ -1180,7 +1180,7 @@ function requestPasswordReset_(p){
         +'<p>Si no has fet aquesta sol·licitud, ignora aquest correu: la teva contrasenya actual no ha canviat.</p>'
         +'<p>Salutacions,</p>'
         +'</div>';
-      try{ MailApp.sendEmail({to:correu,subject:'Contrasenya temporal EAS CC',htmlBody:htmlBody}); }
+      try{ MailApp.sendEmail({to:correu,subject:'Contrasenya temporal EAS CC',htmlBody:htmlBody,name:'Equip de suport EAS CC'}); }
       catch(e){ mailError=String(e&&e.message?e.message:e); }
     }
   });
@@ -1245,11 +1245,12 @@ function checkPendingResets_(){
     +'<p>Gràcies per la feina que feu, sou els millors.</p>'
     +'<p>Salutacions,</p></div>';
 
-  MailApp.sendEmail({
-    to:'nmarieges@ieb.cat,ibustos@ieb.cat',
-    subject:'Sol·licituds pendents de restablir contrasenya EAS_CC',
-    htmlBody:htmlBody
-  });
+  // DESACTIVAT: notificació als admins (pot reactivar-se en el futur si cal)
+  // MailApp.sendEmail({
+  //   to:'nmarieges@ieb.cat,ibustos@ieb.cat',
+  //   subject:'Sol·licituds pendents de restablir contrasenya EAS_CC',
+  //   htmlBody:htmlBody
+  // });
 
   // Guarda l'empremta per evitar repetir el correu si no canvia res
   props.setProperty('lastResetSnapshot', snapshot);
