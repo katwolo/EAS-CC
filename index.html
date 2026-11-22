@@ -1313,8 +1313,6 @@ async function renderUsuaris(){
   if(!r||!r.ok) return showError(r&&r.error?r.error:'Error carregant usuaris.');
   var ad=r.data;
   state._adminUsers=[].concat(ad.admins||[]).concat(ad.professors||[]).concat(ad.alumnes||[]);
-  var nAvisos=state._adminUsers.filter(function(u){return u.resetRequest;}).length;
-  var tabBtn=$('tabAvisos'); if(tabBtn&&nAvisos) tabBtn.textContent='Avisos ('+nAvisos+')';
   if(state.adminTab==='usuaris') renderAdminUsuarisTab(ad);
   else if(state.adminTab==='classes') renderAdminClassesTab();
   else if(state.adminTab==='desdoblaments') renderAdminDesdoblTab(ad);
@@ -1558,7 +1556,7 @@ function filterAvisUsers(q){
   });
 }
 async function loadAvisHistorial(){
-  var r=await call('getAvisos',{rol:''});
+  var r=await call('getAvisos',{all:true});
   if(!r||!r.ok||!r.avisos||!r.avisos.length){
     $('avisHistorial').innerHTML='<div class="empty">No hi ha missatges enviats.</div>'; return;
   }

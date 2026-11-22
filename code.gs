@@ -1317,6 +1317,7 @@ function saveAvis_(p){
   return { id:id };
 }
 function getAvisos_(p){
+  var allMode=!!p.all;
   var userRol=String((p.user&&p.user.rol)||p.rol||'').trim();
   var userClass=String((p.user&&p.user.classe)||'').trim();
   var username=String((p.user&&p.user.username)||'').trim();
@@ -1334,15 +1335,17 @@ function getAvisos_(p){
     var rols=String(v[i][iRols]||'').split(',').map(function(r){return r.trim();}).filter(Boolean);
     var classesArr=iClasses>=0?String(v[i][iClasses]||'').split(',').map(function(x){return x.trim();}).filter(Boolean):[];
     var destArr=iDest>=0?String(v[i][iDest]||'').split(',').map(function(x){return x.trim();}).filter(Boolean):[];
-    var show=false;
-    if(destArr.length){
-      show=username&&destArr.indexOf(username)>=0;
-    } else if(classesArr.length){
-      show=userClass&&classesArr.indexOf(userClass)>=0;
-    } else {
-      show=!userRol||!rols.length||rols.indexOf(userRol)>=0;
+    if(!allMode){
+      var show=false;
+      if(destArr.length){
+        show=username&&destArr.indexOf(username)>=0;
+      } else if(classesArr.length){
+        show=userClass&&classesArr.indexOf(userClass)>=0;
+      } else {
+        show=!userRol||!rols.length||rols.indexOf(userRol)>=0;
+      }
+      if(!show) continue;
     }
-    if(!show) continue;
     out.push({ id:rowId, text:String(v[i][iText]||''), rols:rols, classes:classesArr, destinataris:destArr, data:String(v[i][iData]||''), autor:String(v[i][iAutor]||'') });
   }
   return out.reverse();
