@@ -1283,6 +1283,104 @@ function removeResetTrigger(){
   Logger.log('Trigger eliminat.');
 }
 
+/* ================================================================
+   SETUP: inicialitza totes les pestanyes del Spreadsheet
+   Executa des de l'editor de GAS (selecciona setupSheets i prem ▶)
+   És idempotent: no esborra dades existents, només crea el que falta.
+   Actualitza aquesta funció sempre que canviï l'estructura.
+   ================================================================ */
+function setupSheets(){
+  var ss=getSS_();
+  var log=[];
+
+  function ensureSheet(name, headers){
+    var sh=ss.getSheetByName(name);
+    var created=false;
+    if(!sh){
+      sh=ss.insertSheet(name);
+      created=true;
+      log.push('✅ Creada pestanya: '+name);
+    }
+    // Comprova que existeixin totes les columnes; afegeix les que faltin
+    var lastCol=sh.getLastColumn();
+    var existingHeaders=lastCol>0?sh.getRange(1,1,1,lastCol).getValues()[0].map(function(h){return String(h).trim();}):[];
+    var added=[];
+    headers.forEach(function(h){
+      if(existingHeaders.indexOf(h)<0){
+        var nextCol=sh.getLastColumn()+1;
+        sh.getRange(1,nextCol).setValue(h).setFontWeight('bold');
+        added.push(h);
+      }
+    });
+    if(added.length) log.push('  ➕ Columnes noves a "'+name+'": '+added.join(', '));
+    // Capçalera en negreta i fila congelada
+    if(created){
+      sh.getRange(1,1,1,headers.length).setValues([headers]).setFontWeight('bold').setBackground('#E8F0FE');
+      sh.setFrozenRows(1);
+      sh.autoResizeColumns(1,headers.length);
+    } else if(!added.length){
+      log.push('  ✓ Ja existent i completa: '+name);
+    }
+    return sh;
+  }
+
+  // ── 1. USUARIS ──────────────────────────────────────────────────
+  ensureSheet(CONFIG.sheets.usuaris.name, [
+    'id','nom','cognom','correu corporatiu','username','password',
+    'rol','classe','mòdul','pendents','no matriculat','desdoblaments',
+    'reset request','resets','pwd_temp','pwd_temp_ts','avisos_llegits'
+  ]);
+
+  // ── 2. MÒDULS ───────────────────────────────────────────────────
+  ensureSheet(CONFIG.sheets.moduls.name, ['Codi','Mòdul','Curs','ID']);
+
+  // ── 3. ACTIVITATS -> INDICADORS ─────────────────────────────────
+  ensureSheet(CONFIG.sheets.actInd.name,
+    ['Activitat','Capacitats Clau','Indicadors','Codi Indicador','Codi color','paraules clau']);
+
+  // ── 4. INDICADORS ───────────────────────────────────────────────
+  ensureSheet(CONFIG.sheets.indicadors.name,
+    ['codi','capacitatId','capacitat','requisit','indicador_SABER_FER','colorCapacitat','colorIndicador']);
+
+  // ── 5. AVISOS ───────────────────────────────────────────────────
+  ensureSheet(CONFIG.sheets.avisos.name,
+    ['id','text','rols','data','autor','enviat_email','classes','destinataris']);
+
+  // ── 6. CLASSES ──────────────────────────────────────────────────
+  var clSh=ss.getSheetByName('Classes');
+  if(!clSh){
+    clSh=ss.insertSheet('Classes');
+    var classesDef=[['classe','historial'],['1A','no'],['1B','no'],['1C','no'],['2A','no'],['2B','no'],['2C','no']];
+    clSh.getRange(1,1,classesDef.length,2).setValues(classesDef);
+    clSh.getRange(1,1,1,2).setFontWeight('bold').setBackground('#E8F0FE');
+    clSh.setFrozenRows(1);
+    clSh.autoResizeColumns(1,2);
+    log.push('✅ Creada pestanya: Classes (amb files 1A–2C)');
+  } else {
+    log.push('  ✓ Ja existent i completa: Classes');
+  }
+
+  // ── 7. EXEMPLES ─────────────────────────────────────────────────
+  var exSh=ss.getSheetByName('Exemples');
+  if(!exSh){
+    exSh=ss.insertSheet('Exemples');
+    var exHeaders=['mòdul','actiu','pla','num','títol','subtítol','hashtags','url','ppt'];
+    exSh.getRange(1,1,1,exHeaders.length).setValues([exHeaders]).setFontWeight('bold').setBackground('#E8F0FE');
+    var fixedMods=['lleure','mp1139','mp1136','mp0179','mp1709','mg-esports','ianimacio'];
+    fixedMods.forEach(function(id){ exSh.appendRow([id,'si','','','','','','','']); });
+    exSh.setFrozenRows(1);
+    exSh.autoResizeColumns(1,exHeaders.length);
+    log.push('✅ Creada pestanya: Exemples (amb mòduls per defecte)');
+  } else {
+    log.push('  ✓ Ja existent i completa: Exemples');
+  }
+
+  SpreadsheetApp.flush();
+  log.forEach(function(l){ Logger.log(l); });
+  Logger.log('─────────────────────────────────');
+  Logger.log('setupSheets completat. '+log.length+' accions.');
+}
+
 /* ============== MISSATGES MASSIUS (AVISOS) ============== */
 function ensureAvisosSheet_(){
   var ss=getSS_(); var name=CONFIG.sheets.avisos.name;
