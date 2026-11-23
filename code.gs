@@ -17,11 +17,12 @@ var CONFIG = {
     usuaris:    { name:'Usuaris', headerRow:1 },
     moduls:     { name:'Mòduls', headerRow:1 },
     actInd:     { name:'Activitats -> Indicadors', headerRow:1 },
-    indicadors: { name:'Indicadors', headerRow:1 }
+    indicadors: { name:'Indicadors', headerRow:1 },
+    avisos:     { name:'Avisos', headerRow:1 }
   },
   cols: {
     usuaris:   { id:'id', nom:'nom', cognom:'cognom', correu:'correu corporatiu',
-                 username:'username', password:'password', rol:'rol', classe:'classe', moduls:'mòdul', pendents:'pendents', noMat:'no matriculat', desdoblaments:'desdoblaments', resetRequest:'reset request' },
+                 username:'username', password:'password', rol:'rol', classe:'classe', moduls:'mòdul', pendents:'pendents', noMat:'no matriculat', desdoblaments:'desdoblaments', resetRequest:'reset request', resets:'resets', pwdTemp:'pwd_temp', pwdTempTs:'pwd_temp_ts', avisosLlegits:'avisos_llegits' },
     moduls:    { codi:'Codi', nom:'Mòdul', curs:'Curs', sheetId:'ID' },
     actInd:    { activitat:'Activitat', capacitat:'Capacitats Clau', indicador:'Indicadors', codi:'Codi Indicador', color:'Codi color', paraules:'paraules clau' },
     indicadors:{ codi:'codi', capacitatId:'capacitatId', capacitat:'capacitat', requisit:'requisit', text:'indicador_SABER_FER', colorCap:'colorCapacitat', colorInd:'colorIndicador' }
@@ -60,19 +61,6 @@ function readMainCached_(k) {
 }
 function bustMain_(k) { bust_('sh_'+k); }
 
-/* ====================== KEEP-WARM ====================== */
-function keepWarm_() {}
-function installKeepWarmTrigger() {
-  ScriptApp.getProjectTriggers().forEach(function(t){
-    if(t.getHandlerFunction()==='keepWarm_') ScriptApp.deleteTrigger(t);
-  });
-  ScriptApp.newTrigger('keepWarm_').timeBased().everyMinutes(5).create();
-}
-function removeKeepWarmTrigger() {
-  ScriptApp.getProjectTriggers().forEach(function(t){
-    if(t.getHandlerFunction()==='keepWarm_') ScriptApp.deleteTrigger(t);
-  });
-}
 
 /* ====================== ENTRADA + ROUTER ====================== */
 function doGet(e) {
@@ -97,7 +85,7 @@ function handleRequest(action, payload) {
   try {
     switch (action) {
       case 'ping':                  return { ok:true, msg:'pong' };
-      case 'loginAndInit':          var li_=loginAndInit_(payload); return { ok:true, user:li_.user, initialData:li_.initialData };
+      case 'loginAndInit':          var li_=loginAndInit_(payload); return { ok:true, user:li_.user, initialData:li_.initialData, avisos:li_.avisos||[] };
       case 'getInitialData':        return { ok:true, initialData: getInitialData_(payload) };
       case 'login':                 return { ok:true, user: loginUser_(payload) };
       case 'getCourses':            return { ok:true, courses: getCourses_(payload) };
@@ -116,6 +104,7 @@ function handleRequest(action, payload) {
       case 'getModuleResum':        return { ok:true, data: getModuleResum_(payload) };
       case 'getAlumneGlobalResum':  return { ok:true, data: getAlumneGlobalResum_(payload) };
       case 'getClassGlobalResum':  return { ok:true, data: getClassGlobalResum_(payload) };
+      case 'generateBuidatgeSheet': return { ok:true, url: generateBuidatgeSheet_(payload) };
       case 'getInici':              return { ok:true, data: getInici_(payload) };
       // gestió de projectes
       case 'listProjects':          return { ok:true, projects: listProjects_(payload) };
@@ -126,9 +115,19 @@ function handleRequest(action, payload) {
       case 'deleteActivity':        return { ok:true, deleted: deleteActivity_(payload) };
       // admin: usuaris
       case 'getAdminUsers':         return { ok:true, data: getAdminUsers_() };
+      case 'deleteUser':            return { ok:true, done: deleteUser_(payload) };
+      case 'editUser':              return { ok:true, done: editUser_(payload) };
+      case 'getClassesConfig':      return { ok:true, config: readClassesConfig_() };
+      case 'saveClassesConfig':     return { ok:true, done: saveClassesConfig_(payload) };
+      case 'getExemplesConfig':     var _ec=readExemplesConfig_(); return Object.assign({ok:true},_ec);
+      case 'saveExemplesConfig':    return { ok:true, done: saveExemplesConfig_(payload) };
+      case 'getAlumneHistorial':    return { ok:true, data: getAlumneHistorial_(payload) };
       case 'resetPassword':         return { ok:true, done: resetPassword_(payload) };
       case 'changePassword':        return { ok:true, done: changePassword_(payload) };
       case 'requestPasswordReset':  return { ok:true, done: requestPasswordReset_(payload) };
+      case 'saveAvis':              return { ok:true, done: saveAvis_(payload) };
+      case 'getAvisos':             return { ok:true, avisos: getAvisos_(payload) };
+      case 'markAvisosLlegits':     return { ok:true, done: markAvisosLlegits_(payload) };
       // admin: desdoblaments
       case 'checkModulGrups':       return { ok:true, data: checkModulGrups_(payload) };
       case 'getDesdoblaments':      return { ok:true, data: getDesdoblaments_(payload) };
@@ -179,17 +178,44 @@ function openModule_(codi){
 }
 
 /* ========================= LOGIN ========================= */
+function genTempPwd_(){ var chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'; var r=''; for(var i=0;i<8;i++) r+=chars.charAt(Math.floor(Math.random()*chars.length)); return r; }
 function loginUser_(p){
   var username=String(p.username||'').trim(), password=String(p.password||'');
   if(!username) throw new Error('Cal indicar l\'usuari.');
   var c=CONFIG.cols.usuaris;
   var rows=readMainCached_('usuaris').rows;
+  var TWENTY_FOUR_H=24*60*60*1000;
   for(var i=0;i<rows.length;i++){ var u=rows[i];
-    if(String(u[c.username]).trim()===username && String(u[c.password])===password){
+    if(String(u[c.username]).trim()!==username) continue;
+    // Contrasenya real
+    if(String(u[c.password])===password){
+      var al_=String(u[c.avisosLlegits]||'').trim(); var alArr_=al_?al_.split(',').map(function(x){return x.trim();}).filter(Boolean):[];
       return { id:String(u[c.id]), nom:String(u[c.nom]), cognom:String(u[c.cognom]), correu:String(u[c.correu]||''),
         username:String(u[c.username]), rol:String(u[c.rol]), classe:String(u[c.classe]||''), moduls:parseModuls_(u[c.moduls]),
-        mustChangePassword: String(u[c.password])==='1234' };
+        mustChangePassword: String(u[c.password])==='1234', avisos_llegits:alArr_ };
     }
+    // Contrasenya temporal (caduca a les 24h)
+    var tmpPwd=String(u[c.pwdTemp]||'').trim();
+    var tmpTs=parseInt(String(u[c.pwdTempTs]||'0'))||0;
+    if(tmpPwd && tmpPwd===password && tmpTs && (Date.now()-tmpTs)<TWENTY_FOUR_H){
+      // Temp vàlida: restableix la real a 1234, esborra els camps temporals i força canvi
+      bustMain_('usuaris');
+      var data2=readMain_('usuaris'); var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
+      var pwCol=colIndex_(data2.headers,c.password);
+      var tmpCol=colIndex_(data2.headers,c.pwdTemp);
+      var tsCol=colIndex_(data2.headers,c.pwdTempTs);
+      data2.rows.forEach(function(u2){ if(String(u2[c.username]).trim()!==username) return;
+        if(pwCol>0) sh.getRange(u2.__row,pwCol).setValue('1234');
+        if(tmpCol>0) sh.getRange(u2.__row,tmpCol).setValue('');
+        if(tsCol>0) sh.getRange(u2.__row,tsCol).setValue('');
+      });
+      var al2_=String(u[c.avisosLlegits]||'').trim(); var alArr2_=al2_?al2_.split(',').map(function(x){return x.trim();}).filter(Boolean):[];
+      return { id:String(u[c.id]), nom:String(u[c.nom]), cognom:String(u[c.cognom]), correu:String(u[c.correu]||''),
+        username:String(u[c.username]), rol:String(u[c.rol]), classe:String(u[c.classe]||''), moduls:parseModuls_(u[c.moduls]),
+        mustChangePassword: true, avisos_llegits:alArr2_ };
+    }
+    // Usuari trobat però contrasenya incorrecta
+    throw new Error('Usuari o contrasenya incorrectes.');
   }
   throw new Error('Usuari o contrasenya incorrectes.');
 }
@@ -279,9 +305,12 @@ function readModuleActivities_(ss, codi){
 }
 function getActivityIndicators_(p){
   var act=String(p.activitat||'').trim(); var codes=null; var indParaules={};
-  if(p.moduleCodi){ try{ var ss=openModule_(p.moduleCodi); var res=readModuleActivities_(ss, p.moduleCodi); var mod=res.map;
+  var ab=readActivityBlocks_();
+  if(ab.blocks[act]){
+    codes=ab.blocks[act]; indParaules=ab.indParaules[act]||{};
+  } else if(p.moduleCodi){ try{ var ss=openModule_(p.moduleCodi); var res=readModuleActivities_(ss, p.moduleCodi); var mod=res.map;
     if(mod[act]){ codes=mod[act]; indParaules=res.indParaules[act]||{}; } }catch(e){} }
-  if(!codes){ var ab=readActivityBlocks_(); codes=(ab.blocks[act])||[]; if(!Object.keys(indParaules).length) indParaules=ab.indParaules[act]||{}; }
+  if(!codes) codes=[];
   var cat=indicatorCatalog_();
   return { indicators:codes.map(function(codi){ var ind=cat[codi]||{codi:codi,capacitat:'?',requisit:'',text:'(no trobat)',colorInd:'#cccccc',colorCap:'#999999',capacitatId:capOf_(codi)};
     ind.paraules=indParaules[codi]||''; return ind; }) };
@@ -402,7 +431,7 @@ function saveRegistre_(p){
     if(arr.some(function(x){return x!=='';})) newNotes[row]=arr;
   });
   var newBlock={ projNum:String(p.projecteNum||''), projNom:String(p.projecteNom||''),
-    activitat:String(p.activitat||''), data:String(p.data||''),
+    activitat:String(p.activitat||''), data:String(p.data||''), grup:(p.grup!=null?Number(p.grup):null),
     inds:inds.map(function(ind){ var capId=ind.capacitatId||capOf_(ind.codi);
       return { codi:ind.codi, cap:ind.capacitat||CAP_NOMS[capId]||'', capId:capId, text:ind.text||'',
         colorInd:(ind.colorInd?ind.colorInd.replace('#',''):(CAP_SOFT[capId]||'FFFFFF')) }; }),
@@ -487,7 +516,7 @@ function readBlocks_(sheet, withNotes){
     }
     if(w===0){ c++; continue; }
     var act=String(sheet.getRange(T.rAct,c).getValue()).trim();
-    var actName=act.split('  ·  ')[0]; var data=act.indexOf('·')>-1?(act.split('  ·  ')[1]||'').trim():'';
+    var actParts=act.split('  ·  '); var actName=actParts[0]; var data=(actParts[1]||'').trim(); var grupRaw=(actParts[2]||'').trim(); var blkGrup=(/^G\d+$/.test(grupRaw))?parseInt(grupRaw.slice(1)):null;
     var projNum=(proj.match(/Projecte\s*([^\s·]+)/)||[])[1]||'';
     var projNom=(proj.split('·')[1]||'').trim();
     var inds=[], carryCap='';
@@ -505,7 +534,7 @@ function readBlocks_(sheet, withNotes){
         if(any) notes[T.rosterRow+ri]=arr;
       }
     }
-    blocks.push({ startCol:c, width:w, projNum:projNum, projNom:projNom, activitat:actName, data:data, inds:inds, notes:notes });
+    blocks.push({ startCol:c, width:w, projNum:projNum, projNom:projNom, activitat:actName, data:data, grup:blkGrup, inds:inds, notes:notes });
     c=c+w;
   }
   return blocks;
@@ -546,7 +575,7 @@ function writeBlocks_(sheet, blocks){
   blocks.forEach(function(b){
     var w=b.inds.length; if(!w) return;
     setMerge_(sheet, T.rProj, col, w, 'Projecte '+b.projNum+(b.projNom?(' · '+b.projNom):''), 'FFF2CC', true);
-    setMerge_(sheet, T.rAct,  col, w, b.activitat+(b.data?('  ·  '+b.data):''), 'EFEFEF', false);
+    setMerge_(sheet, T.rAct,  col, w, b.activitat+(b.data?('  ·  '+b.data):'')+(b.grup!=null?('  ·  G'+b.grup):''), 'EFEFEF', false);
     var g=0;
     while(g<w){
       var capId=b.inds[g].capId||capByName_(b.inds[g].cap)||capOf_(b.inds[g].codi||'');
@@ -699,7 +728,7 @@ function getBlockDetail_(p){
   var mrow=moduleRow_(p.moduleCodi); var curs=mrow?normVal_(mrow[CONFIG.cols.moduls.curs]):'';
   var mnom=mrow?String(mrow[CONFIG.cols.moduls.nom]):String(p.moduleCodi);
   return { startCol:blk.startCol, classeLetter:p.classeLetter, classe:curs+String(p.classeLetter), curs:curs, moduleNom:mnom,
-    projNum:blk.projNum, projNom:blk.projNom, activitat:blk.activitat, data:blk.data, grades:grades };
+    projNum:blk.projNum, projNom:blk.projNom, activitat:blk.activitat, data:blk.data, grup:blk.grup!=null?blk.grup:null, grades:grades };
 }
 function deleteRegistre_(p){
   var ss=openModule_(p.moduleCodi); var sh=ss.getSheetByName(modTabName_(p.moduleCodi, p.classeLetter));
@@ -949,7 +978,8 @@ function getAdminUsers_(){
     var moduls=parseModuls_(u[c.moduls]).map(function(code){ return modIdx[code]||{codi:code,nom:code}; });
     var obj={id:String(u[c.id]),nom:String(u[c.nom]),cognom:String(u[c.cognom]),
       username:String(u[c.username]),rol:String(u[c.rol]),classe:String(u[c.classe]||''),
-      moduls:moduls, resetRequest:String(u[c.resetRequest]||'')};
+      correu:String(u[c.correu]||''), modulsCodes:String(u[c.moduls]||''),
+      moduls:moduls, resetRequest:String(u[c.resetRequest]||''), resets:parseInt(String(u[c.resets]||'0'))||0};
     var r=String(u[c.rol]);
     if(r==='admin') admins.push(obj);
     else if(r==='professor') professors.push(obj);
@@ -958,6 +988,108 @@ function getAdminUsers_(){
   var bySort=function(a,b){return (a.cognom+a.nom).localeCompare(b.cognom+b.nom);};
   admins.sort(bySort); professors.sort(bySort); alumnes.sort(bySort);
   return { admins:admins, professors:professors, alumnes:alumnes };
+}
+function deleteUser_(p){
+  var c=CONFIG.cols.usuaris;
+  bustMain_('usuaris');
+  var data=readMain_('usuaris');
+  var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
+  var hdrs=data.headers;
+  var nom, cognom, found=false;
+  data.rows.forEach(function(u){
+    if(String(u[c.id])!==String(p.userId)) return;
+    found=true;
+    nom=String(u[c.nom]).trim();
+    cognom=String(u[c.cognom]).trim();
+    var idCol=colIndex_(hdrs,c.id);
+    var blank=[];
+    for(var ci=0;ci<hdrs.length;ci++) blank.push(ci+1===idCol?String(u[c.id]):'');
+    sh.getRange(u.__row,1,1,hdrs.length).setValues([blank]);
+  });
+  if(!found) throw new Error('Usuari no trobat.');
+  deleteFromModuleTabs_(nom,cognom);
+  return true;
+}
+function deleteFromModuleTabs_(nom,cognom){
+  var T=CONFIG.modTab, R=CONFIG.resTab;
+  var ss=getSS_();
+  var skip=[CONFIG.sheets.usuaris.name,CONFIG.sheets.moduls.name,CONFIG.sheets.actInd.name,CONFIG.sheets.indicadors.name];
+  var key=(nom+'|'+cognom).toLowerCase();
+  ss.getSheets().forEach(function(sheet){
+    var name=sheet.getName();
+    if(skip.indexOf(name)>-1) return;
+    if(/\bOrg$/.test(name)||/\bAct$/.test(name)) return;
+    var isResum=/Resum/.test(name);
+    var startRow=isResum?R.rosterRow:T.rosterRow;
+    var last=sheet.getLastRow();
+    if(last<startRow) return;
+    var vals=sheet.getRange(startRow,T.nomCol,last-startRow+1,2).getValues();
+    var toDelete=[];
+    for(var i=0;i<vals.length;i++){
+      var n=String(vals[i][0]||'').trim(), cg=String(vals[i][1]||'').trim();
+      if((n+'|'+cg).toLowerCase()===key) toDelete.push(startRow+i);
+    }
+    toDelete.sort(function(a,b){return b-a;});
+    toDelete.forEach(function(row){sheet.deleteRow(row);});
+  });
+}
+function editUser_(p){
+  var c=CONFIG.cols.usuaris;
+  bustMain_('usuaris');
+  var data=readMain_('usuaris');
+  var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
+  var hdrs=data.headers;
+  var oldNom, oldCognom, found=false;
+  data.rows.forEach(function(u){
+    if(String(u[c.id])!==String(p.userId)) return;
+    found=true;
+    oldNom=String(u[c.nom]).trim();
+    oldCognom=String(u[c.cognom]).trim();
+    var fields=[
+      {col:c.nom,      val:p.nom},
+      {col:c.cognom,   val:p.cognom},
+      {col:c.correu,   val:p.correu},
+      {col:c.username, val:p.username},
+      {col:c.classe,   val:p.classe},
+      {col:c.moduls,   val:p.modulsCodes},
+      {col:c.rol,      val:p.rol}
+    ];
+    fields.forEach(function(f){
+      if(f.val===undefined||f.val===null) return;
+      var ci=colIndex_(hdrs,f.col);
+      if(ci>0) sh.getRange(u.__row,ci).setValue(String(f.val));
+    });
+  });
+  if(!found) throw new Error('Usuari no trobat.');
+  var newNom=(p.nom!==undefined&&p.nom!==null)?String(p.nom).trim():oldNom;
+  var newCognom=(p.cognom!==undefined&&p.cognom!==null)?String(p.cognom).trim():oldCognom;
+  if(newNom!==oldNom||newCognom!==oldCognom){
+    updateNameInModuleTabs_(oldNom,oldCognom,newNom,newCognom);
+  }
+  return true;
+}
+function updateNameInModuleTabs_(oldNom,oldCognom,newNom,newCognom){
+  var T=CONFIG.modTab, R=CONFIG.resTab;
+  var ss=getSS_();
+  var skip=[CONFIG.sheets.usuaris.name,CONFIG.sheets.moduls.name,CONFIG.sheets.actInd.name,CONFIG.sheets.indicadors.name];
+  var oldKey=(oldNom+'|'+oldCognom).toLowerCase();
+  ss.getSheets().forEach(function(sheet){
+    var name=sheet.getName();
+    if(skip.indexOf(name)>-1) return;
+    if(/\bOrg$/.test(name)||/\bAct$/.test(name)) return;
+    var isResum=/Resum/.test(name);
+    var startRow=isResum?R.rosterRow:T.rosterRow;
+    var last=sheet.getLastRow();
+    if(last<startRow) return;
+    var vals=sheet.getRange(startRow,T.nomCol,last-startRow+1,2).getValues();
+    for(var i=0;i<vals.length;i++){
+      var nom=String(vals[i][0]||'').trim(), cog=String(vals[i][1]||'').trim();
+      if((nom+'|'+cog).toLowerCase()===oldKey){
+        sheet.getRange(startRow+i,T.nomCol).setValue(newNom);
+        sheet.getRange(startRow+i,T.cogCol).setValue(newCognom);
+      }
+    }
+  });
 }
 function resetPassword_(p){
   var c=CONFIG.cols.usuaris;
@@ -1010,22 +1142,50 @@ function changePassword_(p){
   return true;
 }
 function requestPasswordReset_(p){
-  // Escriu el timestamp a la columna M. El trigger checkPendingResets_
-  // s'encarrega d'enviar el correu als admins quan detecta canvis.
   var c=CONFIG.cols.usuaris;
   bustMain_('usuaris');
-  var data=readMain_('usuaris'); var col=colIndex_(data.headers,c.resetRequest);
-  if(col<0) throw new Error('No s\'ha trobat la columna reset request al full Usuaris.');
+  var data=readMain_('usuaris');
+  var rrCol=colIndex_(data.headers,c.resetRequest);
+  var tmpCol=colIndex_(data.headers,c.pwdTemp);
+  var tsCol=colIndex_(data.headers,c.pwdTempTs);
   var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name); var found=false;
   var now=new Date();
   var dd=now.getDate(),mm=now.getMonth()+1,yy=now.getFullYear(),hh=now.getHours(),mi=now.getMinutes();
   var nowStr=(dd<10?'0':'')+dd+'/'+(mm<10?'0':'')+mm+'/'+yy+' '+(hh<10?'0':'')+hh+':'+(mi<10?'0':'')+mi;
+  var tempPwd=genTempPwd_();
+  var mailError=null;
   data.rows.forEach(function(u){
-    if(String(u[c.username]).trim()===String(p.username||'').trim()){
-      sh.getRange(u.__row,col).setValue(nowStr); found=true;
+    if(String(u[c.username]).trim()!==String(p.username||'').trim()) return;
+    found=true;
+    // Desa contrasenya temporal i timestamp (NO toca la contrasenya real)
+    if(tmpCol>0) sh.getRange(u.__row,tmpCol).setValue(tempPwd);
+    if(tsCol>0) sh.getRange(u.__row,tsCol).setValue(String(Date.now()));
+    // Desa el timestamp de sol·licitud (per seguiment admin)
+    if(rrCol>=0) sh.getRange(u.__row,rrCol).setValue(nowStr);
+    // Incrementa el comptador de restabliments
+    var resetsCol=colIndex_(data.headers,c.resets);
+    if(resetsCol>=0){
+      var prev=parseInt(String(u[c.resets]||'0'))||0;
+      sh.getRange(u.__row,resetsCol).setValue(prev+1);
+    }
+    // Envia correu amb la contrasenya temporal
+    var correu=String(u[c.correu]||'').trim();
+    var nom=String(u[c.nom]||'').trim();
+    if(correu){
+      var htmlBody='<div style="font-family:sans-serif;font-size:14px;color:#222;line-height:1.6">'
+        +'<p>Hola '+nom+',</p>'
+        +'<p>Has sol·licitat restablir la contrasenya de l\'EAS CC.</p>'
+        +'<p>La teva contrasenya temporal és: <strong style="font-size:18px;letter-spacing:.1em">'+tempPwd+'</strong></p>'
+        +'<p>Aquesta contrasenya caduca en <strong>24 hores</strong>. Quan entris, l\'aplicació et demanarà que triïs una contrasenya nova.</p>'
+        +'<p>Si no has fet aquesta sol·licitud, ignora aquest correu: la teva contrasenya actual no ha canviat.</p>'
+        +'<p>Salutacions,</p>'
+        +'</div>';
+      try{ MailApp.sendEmail({to:correu,subject:'Contrasenya temporal EAS CC',htmlBody:htmlBody,name:'Equip de suport EAS CC'}); }
+      catch(e){ mailError=String(e&&e.message?e.message:e); }
     }
   });
   if(!found) throw new Error('No s\'ha trobat cap usuari amb aquest nom d\'usuari.');
+  if(mailError) Logger.log('Error enviant correu reset a usuari: '+mailError);
   return true;
 }
 
@@ -1085,11 +1245,12 @@ function checkPendingResets_(){
     +'<p>Gràcies per la feina que feu, sou els millors.</p>'
     +'<p>Salutacions,</p></div>';
 
-  MailApp.sendEmail({
-    to:'nmarieges@ieb.cat,ibustos@ieb.cat',
-    subject:'Sol·licituds pendents de restablir contrasenya EAS_CC',
-    htmlBody:htmlBody
-  });
+  // DESACTIVAT: notificació als admins (pot reactivar-se en el futur si cal)
+  // MailApp.sendEmail({
+  //   to:'nmarieges@ieb.cat,ibustos@ieb.cat',
+  //   subject:'Sol·licituds pendents de restablir contrasenya EAS_CC',
+  //   htmlBody:htmlBody
+  // });
 
   // Guarda l'empremta per evitar repetir el correu si no canvia res
   props.setProperty('lastResetSnapshot', snapshot);
@@ -1120,6 +1281,96 @@ function removeResetTrigger(){
     if(t.getHandlerFunction()==='checkPendingResets_') ScriptApp.deleteTrigger(t);
   });
   Logger.log('Trigger eliminat.');
+}
+
+/* ============== MISSATGES MASSIUS (AVISOS) ============== */
+function ensureAvisosSheet_(){
+  var ss=getSS_(); var name=CONFIG.sheets.avisos.name;
+  var sh=ss.getSheetByName(name);
+  if(!sh){
+    sh=ss.insertSheet(name);
+    sh.getRange(1,1,1,8).setValues([['id','text','rols','data','autor','enviat_email','classes','destinataris']]);
+    sh.getRange(1,1,1,8).setFontWeight('bold');
+  } else {
+    // Afegeix les noves columnes si no existeixen
+    var headers=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(function(h){return String(h).trim();});
+    if(headers.indexOf('classes')<0){ sh.getRange(1,sh.getLastColumn()+1).setValue('classes').setFontWeight('bold'); }
+    if(headers.indexOf('destinataris')<0){ sh.getRange(1,sh.getLastColumn()+1).setValue('destinataris').setFontWeight('bold'); }
+  }
+  return sh;
+}
+function saveAvis_(p){
+  var text=String(p.text||'').trim(); if(!text) throw new Error('El text del missatge no pot estar buit.');
+  var mode=String(p.mode||'rol'); // 'rol', 'classe', 'individual'
+  var rols=(p.rols||[]).filter(Boolean);
+  var classes=(p.classes||[]).filter(Boolean);
+  var destinataris=(p.destinataris||[]).filter(Boolean);
+  if(mode==='rol'&&!rols.length) throw new Error('Cal seleccionar almenys un rol destinatari.');
+  if(mode==='classe'&&!classes.length) throw new Error('Cal seleccionar almenys una classe.');
+  if(mode==='individual'&&!destinataris.length) throw new Error('Cal seleccionar almenys un destinatari.');
+  var autor=String(p.autor||'admin');
+  var sh=ensureAvisosSheet_();
+  var now=new Date();
+  var id='avis_'+now.getTime();
+  var dateStr=Utilities.formatDate(now,Session.getScriptTimeZone(),'dd/MM/yyyy HH:mm');
+  sh.appendRow([id,text,rols.join(','),dateStr,autor,'',classes.join(','),destinataris.join(',')]);
+  return { id:id };
+}
+function getAvisos_(p){
+  var allMode=!!p.all;
+  var userRol=String((p.user&&p.user.rol)||p.rol||'').trim();
+  var userClass=String((p.user&&p.user.classe)||'').trim();
+  var username=String((p.user&&p.user.username)||'').trim();
+  var sh; try{ sh=getSS_().getSheetByName(CONFIG.sheets.avisos.name); }catch(e){ return []; }
+  if(!sh) return [];
+  var v=sh.getDataRange().getValues();
+  if(v.length<2) return [];
+  var headers=v[0].map(function(h){return String(h).trim();});
+  var iId=headers.indexOf('id'), iText=headers.indexOf('text'), iRols=headers.indexOf('rols'),
+      iData=headers.indexOf('data'), iAutor=headers.indexOf('autor'),
+      iClasses=headers.indexOf('classes'), iDest=headers.indexOf('destinataris');
+  var out=[];
+  for(var i=1;i<v.length;i++){
+    var rowId=String(v[i][iId]||''); if(!rowId) continue;
+    var rols=String(v[i][iRols]||'').split(',').map(function(r){return r.trim();}).filter(Boolean);
+    var classesArr=iClasses>=0?String(v[i][iClasses]||'').split(',').map(function(x){return x.trim();}).filter(Boolean):[];
+    var destArr=iDest>=0?String(v[i][iDest]||'').split(',').map(function(x){return x.trim();}).filter(Boolean):[];
+    if(!allMode){
+      var show=false;
+      if(destArr.length){
+        show=username&&destArr.indexOf(username)>=0;
+      } else if(classesArr.length){
+        show=userClass&&classesArr.indexOf(userClass)>=0;
+      } else {
+        show=!userRol||!rols.length||rols.indexOf(userRol)>=0;
+      }
+      if(!show) continue;
+    }
+    out.push({ id:rowId, text:String(v[i][iText]||''), rols:rols, classes:classesArr, destinataris:destArr, data:String(v[i][iData]||''), autor:String(v[i][iAutor]||'') });
+  }
+  return out.reverse();
+}
+
+function markAvisosLlegits_(p){
+  var username=String((p.user&&p.user.username)||p.username||'').trim();
+  if(!username) throw new Error('Usuari no identificat.');
+  var newIds=(p.ids||[]).map(function(x){return String(x).trim();}).filter(Boolean);
+  if(!newIds.length) return true;
+  var c=CONFIG.cols.usuaris;
+  bustMain_('usuaris');
+  var data=readMain_('usuaris');
+  var alCol=colIndex_(data.headers,c.avisosLlegits);
+  if(alCol<1) return true; // columna no existeix encara, no fa res
+  var sh=getSS_().getSheetByName(CONFIG.sheets.usuaris.name);
+  data.rows.forEach(function(u){
+    if(String(u[c.username]).trim()!==username) return;
+    var current=String(u[c.avisosLlegits]||'').trim();
+    var arr=current?current.split(',').map(function(x){return x.trim();}).filter(Boolean):[];
+    newIds.forEach(function(id){ if(arr.indexOf(id)<0) arr.push(id); });
+    sh.getRange(u.__row,alCol).setValue(arr.join(','));
+  });
+  bustMain_('usuaris');
+  return true;
 }
 
 /* ============== GESTIÓ DE DESDOBLAMENTS (ADMIN) ============== */
@@ -1205,6 +1456,214 @@ function _deleteCatalogRows_(sh, nom, actCol){
   for(var i=v.length-1;i>=1;i--){ if(String(v[i][ci-1]||'').trim()===nom) sh.deleteRow(i+1); }
 }
 
+/* ============== GESTIÓ CLASSES (HISTORIAL ALUMNAT) ============== */
+function readClassesConfig_(){
+  var FIXED=['1A','1B','1C','2A','2B','2C'];
+  var ss=getSS_();
+  var sh=ss.getSheetByName('Classes');
+  if(!sh){
+    sh=ss.insertSheet('Classes');
+    sh.getRange(1,1,1,2).setValues([['classe','historial']]).setFontWeight('bold');
+    FIXED.forEach(function(c,i){ sh.getRange(2+i,1,1,2).setValues([[c,'no']]); });
+  }
+  var v=sh.getDataRange().getValues();
+  var hdrs=v[0].map(function(h){return String(h).trim();});
+  var cc=hdrs.indexOf('classe'), hc=hdrs.indexOf('historial');
+  var map={};
+  FIXED.forEach(function(c){ map[c]=false; });
+  for(var i=1;i<v.length;i++){
+    var cl=String(v[i][cc>=0?cc:0]||'').trim();
+    if(cl) map[cl]=(String(v[i][hc>=0?hc:1]||'').trim().toLowerCase()==='si');
+  }
+  return map;
+}
+function saveClassesConfig_(p){
+  var FIXED=['1A','1B','1C','2A','2B','2C'];
+  var ss=getSS_();
+  var sh=ss.getSheetByName('Classes');
+  if(!sh){
+    sh=ss.insertSheet('Classes');
+    sh.getRange(1,1,1,2).setValues([['classe','historial']]).setFontWeight('bold');
+  }
+  var v=sh.getDataRange().getValues();
+  var hdrs=v[0].map(function(h){return String(h).trim();});
+  var cc=hdrs.indexOf('classe')+1, hc=hdrs.indexOf('historial')+1;
+  if(cc<=0){ sh.getRange(1,1).setValue('classe'); cc=1; }
+  if(hc<=0){ sh.getRange(1,2).setValue('historial'); hc=2; }
+  var rowMap={};
+  for(var i=1;i<v.length;i++){
+    var cl=String(v[i][cc-1]||'').trim(); if(cl) rowMap[cl]=i+1;
+  }
+  var cfg=p.config||{};
+  FIXED.forEach(function(c){
+    var val=(cfg[c]===true)?'si':'no';
+    if(rowMap[c]){ sh.getRange(rowMap[c],hc).setValue(val); }
+    else{ var lr=sh.getLastRow(); sh.getRange(lr+1,cc).setValue(c); sh.getRange(lr+1,hc).setValue(val); rowMap[c]=lr+1; }
+  });
+  return true;
+}
+
+/* ============== EXEMPLES PRÀCTICS CONFIG ============== */
+function readExemplesConfig_(){
+  var FIXED=['lleure','mp1139','mp1136','mp0179','mp1709','mg-esports','ianimacio'];
+  var ss=getSS_();
+  var sh=ss.getSheetByName('Exemples');
+  if(!sh){
+    sh=ss.insertSheet('Exemples');
+    sh.getRange(1,1,1,9).setValues([['mòdul','actiu','pla','num','títol','subtítol','hashtags','url','ppt']]).setFontWeight('bold');
+    FIXED.forEach(function(id){ sh.appendRow([id,'si','','','','','','','']); });
+    return {newFormat:true, mods:{}, acts:[]};
+  }
+  var v=sh.getDataRange().getValues();
+  if(v.length<1) return {newFormat:true, mods:{}, acts:[]};
+  function norm(s){ return String(s||'').trim().normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(); }
+  var hdrs=v[0].map(norm);
+  var isNew=(hdrs.indexOf('modul')>=0);
+  if(!isNew){
+    // Old format: id|actiu|url|A1-A9
+    var ic=hdrs.indexOf('id'), ac=hdrs.indexOf('actiu'), uc=hdrs.indexOf('url');
+    var map={}, urls={}, pptUrls={};
+    FIXED.forEach(function(id){ map[id]=true; });
+    for(var i=1;i<v.length;i++){
+      var mid=String(v[i][ic>=0?ic:0]||'').trim();
+      if(mid){
+        map[mid]=(String(v[i][ac>=0?ac:1]||'').trim().toLowerCase()!=='no');
+        if(uc>=0){ var u=String(v[i][uc]||'').trim(); if(u) urls[mid]=u; }
+        var actMap={};
+        for(var j=1;j<=9;j++){
+          var col=hdrs.indexOf('a'+j);
+          if(col>=0){ var pu=String(v[i][col]||'').trim(); if(pu) actMap['a'+j]=pu; }
+        }
+        if(Object.keys(actMap).length) pptUrls[mid]=actMap;
+      }
+    }
+    return {newFormat:false, config:map, urls:urls, pptUrls:pptUrls};
+  }
+  // New format: mòdul|actiu|pla|num|títol|subtítol|hashtags|url|ppt
+  var ci={
+    mod:hdrs.indexOf('modul'), actiu:hdrs.indexOf('actiu'),
+    pla:hdrs.indexOf('pla'), num:hdrs.indexOf('num'),
+    titol:hdrs.indexOf('titol'), sub:hdrs.indexOf('subtitol'),
+    tags:hdrs.indexOf('hashtags'), url:hdrs.indexOf('url'), ppt:hdrs.indexOf('ppt')
+  };
+  var mods={}, acts=[];
+  FIXED.forEach(function(id){ mods[id]=true; });
+  for(var i=1;i<v.length;i++){
+    var row=v[i];
+    var mid2=String(row[ci.mod>=0?ci.mod:0]||'').trim();
+    if(!mid2) continue;
+    var actiu2=(String(row[ci.actiu>=0?ci.actiu:1]||'').trim().toLowerCase()!=='no');
+    var pla=ci.pla>=0?String(row[ci.pla]||'').trim().toUpperCase():'';
+    var num=ci.num>=0?parseInt(String(row[ci.num]||'').trim())||0:0;
+    if(!pla){ mods[mid2]=actiu2; }
+    else{ acts.push({mod:mid2,actiu:actiu2,pla:pla,num:num,
+      titol:ci.titol>=0?String(row[ci.titol]||'').trim():'',
+      sub:ci.sub>=0?String(row[ci.sub]||'').trim():'',
+      tags:ci.tags>=0?String(row[ci.tags]||'').trim():'',
+      url:ci.url>=0?String(row[ci.url]||'').trim():'',
+      ppt:ci.ppt>=0?String(row[ci.ppt]||'').trim():''}); }
+  }
+  return {newFormat:true, mods:mods, acts:acts};
+}
+function saveExemplesConfig_(p){
+  var FIXED=['lleure','mp1139','mp1136','mp0179','mp1709','mg-esports','ianimacio'];
+  var ss=getSS_();
+  var sh=ss.getSheetByName('Exemples');
+  if(!sh){ sh=ss.insertSheet('Exemples'); }
+  if(p.acts!==undefined){
+    // New format save
+    sh.clearContents();
+    var hdrs=['mòdul','actiu','pla','num','títol','subtítol','hashtags','url','ppt'];
+    var rows=[hdrs];
+    var mods=p.mods||{}, acts=p.acts||[];
+    var allMods=FIXED.slice();
+    Object.keys(mods).forEach(function(id){ if(allMods.indexOf(id)<0) allMods.push(id); });
+    allMods.forEach(function(mid){
+      rows.push([mid,(mods[mid]===false)?'no':'si','','','','','','','']);
+      acts.filter(function(a){return a.mod===mid;})
+          .sort(function(a,b){ return a.pla<b.pla?-1:a.pla>b.pla?1:a.num-b.num; })
+          .forEach(function(a){ rows.push([a.mod,a.actiu?'si':'no',a.pla||'',a.num||'',a.titol||'',a.sub||'',a.tags||'',a.url||'',a.ppt||'']); });
+    });
+    sh.getRange(1,1,rows.length,9).setValues(rows);
+    sh.getRange(1,1,1,9).setFontWeight('bold');
+  } else {
+    // Old format save (backward compat)
+    var v=sh.getDataRange().getValues();
+    var h2=v[0].map(function(h){return String(h).trim();});
+    var ic2=h2.indexOf('id')+1, ac2=h2.indexOf('actiu')+1;
+    if(ic2<=0){ sh.getRange(1,1).setValue('id'); ic2=1; }
+    if(ac2<=0){ sh.getRange(1,2).setValue('actiu'); ac2=2; }
+    var rm={};
+    for(var i=1;i<v.length;i++){ var m=String(v[i][ic2-1]||'').trim(); if(m) rm[m]=i+1; }
+    var cfg=p.config||{};
+    FIXED.forEach(function(id){
+      var val=(cfg[id]===false)?'no':'si';
+      if(rm[id]){ sh.getRange(rm[id],ac2).setValue(val); }
+      else{ var lr=sh.getLastRow(); sh.getRange(lr+1,ic2).setValue(id); sh.getRange(lr+1,ac2).setValue(val); rm[id]=lr+1; }
+    });
+  }
+  return true;
+}
+
+/* ============== HISTORIAL DE L'ALUMNE ============== */
+function getAlumneHistorial_(p){
+  var c=CONFIG.cols.usuaris; var student=null;
+  readMainCached_('usuaris').rows.forEach(function(u){ if(String(u[c.id])===String(p.userId)) student=u; });
+  if(!student) throw new Error('Alumne no trobat.');
+  var nom=String(student[c.nom]).trim(), cognom=String(student[c.cognom]).trim(), classe=String(student[c.classe]).trim();
+  var lletra=classe.charAt(classe.length-1).toUpperCase();
+  var cm=CONFIG.cols.moduls; var modIdx={};
+  readMainCached_('moduls').rows.forEach(function(m){ var codi=normVal_(m[cm.codi]); if(codi) modIdx[codi]={codi:codi,nom:String(m[cm.nom])}; });
+  var ss=getSS_(); var registres=[];
+  var key=(nom+'|'+cognom).toLowerCase();
+  Object.keys(modIdx).forEach(function(codi){
+    var sh=ss.getSheetByName(modTabName_(codi, lletra)); if(!sh) return;
+    var T=CONFIG.modTab; var last=sh.getLastRow(); if(last<T.rosterRow) return;
+    var roster=sh.getRange(T.rosterRow,T.nomCol,last-T.rosterRow+1,2).getValues();
+    var studentRow=-1;
+    for(var ri=0;ri<roster.length;ri++){
+      if((String(roster[ri][0]||'').trim()+'|'+String(roster[ri][1]||'').trim()).toLowerCase()===key){ studentRow=T.rosterRow+ri; break; }
+    }
+    if(studentRow<0) return;
+    readBlocks_(sh, true).forEach(function(b){
+      var arr=b.notes?b.notes[studentRow]:null;
+      if(!arr||!arr.some(function(v){return v!==''&&v!=null;})) return;
+      // get sorted indicator codes to map position → codi
+      var indInfos=[];
+      try{
+        var sortedInds=sortInds_(getActivityIndicators_({activitat:b.activitat,moduleCodi:codi}).indicators);
+        indInfos=sortedInds.map(function(ind){ return {codi:ind.codi,text:ind.text,cap:ind.capacitatId||capOf_(ind.codi),paraules:ind.paraules||''}; });
+      }catch(e){
+        indInfos=b.inds.map(function(ind){ return {codi:ind.text||'?',text:ind.text||'',cap:ind.capId||'',paraules:''}; });
+      }
+      var ccAcc={};
+      indInfos.forEach(function(ind,i){
+        if(i>=arr.length) return;
+        var v=arr[i]; if(v===''||v==null||String(v).toUpperCase()==='NA') return;
+        var n=Number(v); if(isNaN(n)) return;
+        if(!ccAcc[ind.cap]) ccAcc[ind.cap]={s:0,c:0};
+        ccAcc[ind.cap].s+=n; ccAcc[ind.cap].c++;
+      });
+      var ccMeans={}; CAPS.forEach(function(cap){ var d=ccAcc[cap]; ccMeans[cap]=d?Math.round(d.s/d.c):null; });
+      var inds=indInfos.map(function(ind,i){
+        var v=i<arr.length?arr[i]:null; var grade=null;
+        if(v!==''&&v!=null){ if(String(v).toUpperCase()==='NA') grade='NA'; else{ var n=Number(v); if(!isNaN(n)) grade=n; } }
+        return {codi:ind.codi,text:ind.text,cap:ind.cap,grade:grade,paraules:ind.paraules||''};
+      }).filter(function(x){return x.grade!==null;});
+      var seen={}, hashtags=[];
+      indInfos.forEach(function(ind){
+        String(ind.paraules||'').trim().split(/[\s,]+/).forEach(function(w){
+          var t=w.replace(/^#+/,'').trim(); if(!t) return;
+          var key=t.toLowerCase(); if(!seen[key]){ seen[key]=true; hashtags.push('#'+t); }
+        });
+      });
+      registres.push({moduleCodi:codi,moduleNom:modIdx[codi].nom,activitat:b.activitat,data:b.data,projNum:b.projNum,ccMeans:ccMeans,inds:inds,hashtags:hashtags.slice(0,3)});
+    });
+  });
+  registres.sort(function(a,b){return String(b.data).localeCompare(String(a.data));});
+  return {registres:registres};
+}
+
 /*************************************************************************
  * createModuleSheets() — crea el Google Sheet de cada mòdul sense ID,
  * amb les pestanyes i el roster, i escriu l'ID a la pestanya Mòduls.
@@ -1247,7 +1706,11 @@ function getInitialData_(p) {
 }
 function loginAndInit_(p) {
   var user=loginUser_(p);
-  return { user:user, initialData:getInitialData_({user:user}) };
+  if(user.rol==='alumne'){
+    try{ var cc=readClassesConfig_(); user.historialEnabled=!!(cc[user.classe]); }catch(e){ user.historialEnabled=false; }
+  }
+  var avisos=[]; try{ avisos=getAvisos_({user:user}); }catch(e){}
+  return { user:user, initialData:getInitialData_({user:user}), avisos:avisos };
 }
 
 function createModuleSheets() {
@@ -1261,5 +1724,158 @@ function createModuleSheets() {
     }catch(err){ Logger.log('ERROR mòdul %s: %s', codi, String(err)); }
   });
   Logger.log('createModuleSheets/reparació feta.');
+}
+
+/* ============== BUIDATGE (SEGUIMENT CC) ============== */
+function columnToLetter_(col){
+  var s=''; while(col>0){col--;s=String.fromCharCode(65+(col%26))+s;col=Math.floor(col/26);} return s;
+}
+function buildObservacions_(s,RCAPS,RNAMES){
+  var obs=[], cells=s.cells;
+  var insuf=RCAPS.filter(function(c){return cells[c]!=null&&cells[c]<=2;}).map(function(c){return RNAMES[c]+' ('+cells[c]+'/10)';});
+  if(insuf.length) obs.push('Insuficient a: '+insuf.join(', '));
+  var aval=RCAPS.filter(function(c){return cells[c]!=null;}).length;
+  if(aval<=4) obs.push('Poques evidències ('+aval+'/7 avaluades)');
+  if(aval>0&&s.nota!=null){
+    var mean=RCAPS.reduce(function(a,c){return cells[c]!=null?a+cells[c]:a;},0)/aval;
+    if(Math.abs(s.nota-mean)>1) obs.push('Desviació nota informe ('+s.nota.toFixed(1)+' vs mitjana CC '+mean.toFixed(2)+')');
+  }
+  if(s.nota!=null&&s.nota<5&&Math.round(s.nota)>=5) obs.push("L'arrodoniment puja a 5 una nota de "+s.nota.toFixed(1)+': decidir la nota final');
+  if(s.nota==null) obs.push('Sense nota global');
+  return obs.length?obs.join('. '):'-';
+}
+function buildDetallTab_(sh,students,classe,RCAPS,RNAMES,dateStr){
+  var n=students.length, FR=5, LR=FR+n-1, AR=LR+1, COLS=17;
+  sh.setFrozenRows(4); sh.setFrozenColumns(1);
+  sh.getRange(1,1,1,COLS).merge().setValue('DETALL INDIVIDUAL PER CAPACITATS CLAU I SEGUIMENT — CLASSE '+classe)
+    .setBackground('#1E293B').setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(15).setHorizontalAlignment('center');
+  sh.getRange(2,1,1,COLS).merge().setValue("Desglossament de les 7 Capacitats Clau, mitjana, nota de l'informe i alertes de revisió")
+    .setBackground('#1E293B').setFontColor('#E2E8F0').setFontSize(10);
+  var capHdrs=RCAPS.map(function(cap){return RNAMES[cap];});
+  var allHdrs=['Alumnat'].concat(capHdrs,['Avaluades\n(/7)','Mitjana\nCC','Nota\nInforme','Desviació','Nota Final\n(Sencera)','Nivell Assoliment',"D'acord\namb la nota?",'Capacitats pendents','Observacions']);
+  sh.getRange(4,1,1,COLS).setValues([allHdrs]).setBackground('#334155').setFontColor('#FFFFFF')
+    .setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center').setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
+  for(var i=0;i<n;i++){
+    var s=students[i]; var row=FR+i;
+    sh.getRange(row,1).setValue((s.cognom+', '+s.nom).trim()).setHorizontalAlignment('left');
+    RCAPS.forEach(function(cap,ci){
+      var v=s.cells[cap]; sh.getRange(row,2+ci).setValue(v!=null?v:'').setHorizontalAlignment('center');
+    });
+    sh.getRange(row,9).setFormula('=COUNT(B'+row+':H'+row+')').setNumberFormat('0"/7"').setHorizontalAlignment('center');
+    sh.getRange(row,10).setFormula('=IF(I'+row+'=0,"",AVERAGE(B'+row+':H'+row+'))').setNumberFormat('0.00').setHorizontalAlignment('center');
+    sh.getRange(row,11).setValue(s.nota!=null?Number(s.nota.toFixed(1)):'').setNumberFormat('0.0').setHorizontalAlignment('center');
+    sh.getRange(row,12).setFormula('=IF(OR(J'+row+'="",K'+row+'=""),"",K'+row+'-J'+row+')').setNumberFormat('+0.00;-0.00;0.00').setHorizontalAlignment('center');
+    sh.getRange(row,13).setFormula('=IF(K'+row+'="","",ROUND(K'+row+',0))').setHorizontalAlignment('center');
+    sh.getRange(row,14).setFormula('=IF(K'+row+'="","",IF(K'+row+'>=9,"Excel·lent",IF(K'+row+'>=6,"Notable",IF(K'+row+'>=5,"Aprovat","Insuficient"))))').setHorizontalAlignment('center');
+    sh.getRange(row,15).setFormula('=IF(K'+row+'="","Revisar",IF(OR(COUNTIF(B'+row+':H'+row+',"<=2")>0,I'+row+'<=4,ABS(IF(OR(J'+row+'="",K'+row+'=""),0,K'+row+'-J'+row+'))>1,AND(K'+row+'<5,ROUND(K'+row+',0)>=5)),"Revisar","Sí"))').setHorizontalAlignment('center');
+    var pend=RCAPS.filter(function(cap){return s.cells[cap]==null;}).map(function(cap){return RNAMES[cap];});
+    sh.getRange(row,16).setValue(pend.length?pend.join(', '):'Cap').setHorizontalAlignment('left').setWrap(true);
+    sh.getRange(row,17).setValue(buildObservacions_(s,RCAPS,RNAMES)).setHorizontalAlignment('left').setWrap(true);
+    sh.getRange(row,1,1,COLS).setBackground(i%2===0?'#FFFFFF':'#F8FAFC').setFontSize(10);
+  }
+  sh.getRange(AR,1).setValue('MITJANA DEL GRUP').setFontWeight('bold').setBackground('#E2E8F0');
+  for(var c=2;c<=13;c++){var cl=columnToLetter_(c); sh.getRange(AR,c).setFormula('=IF(COUNT('+cl+FR+':'+cl+LR+')=0,"",AVERAGE('+cl+FR+':'+cl+LR+'))').setBackground('#E2E8F0').setFontWeight('bold').setHorizontalAlignment('center');}
+  sh.getRange(AR,14,1,4).setBackground('#E2E8F0'); sh.getRange(AR,1,1,COLS).setFontSize(10);
+  sh.setColumnWidth(1,160); for(var cc=2;cc<=8;cc++) sh.setColumnWidth(cc,80);
+  sh.setColumnWidth(9,70);sh.setColumnWidth(10,75);sh.setColumnWidth(11,75);sh.setColumnWidth(12,80);sh.setColumnWidth(13,75);sh.setColumnWidth(14,105);sh.setColumnWidth(15,85);sh.setColumnWidth(16,190);sh.setColumnWidth(17,240);
+  var rules=[], capR=sh.getRange(FR,2,n,7);
+  [[1,2,'#FEE2E2','#991B1B'],[3,5,'#FEF3C7','#92400E'],[6,8,'#DBEAFE','#1E40AF'],[9,10,'#DCFCE7','#166534']].forEach(function(x){rules.push(sh.newConditionalFormatRule().whenNumberBetween(x[0],x[1]).setBackground(x[2]).setFontColor(x[3]).setRanges([capR]).build());});
+  var nR=sh.getRange(FR,14,n);
+  [['Excel·lent','#DCFCE7','#166534'],['Notable','#DBEAFE','#1E40AF'],['Aprovat','#FEF3C7','#92400E'],['Insuficient','#FEE2E2','#991B1B']].forEach(function(x){rules.push(sh.newConditionalFormatRule().whenTextEqualTo(x[0]).setBackground(x[1]).setFontColor(x[2]).setRanges([nR]).build());});
+  var oR=sh.getRange(FR,15,n);
+  rules.push(sh.newConditionalFormatRule().whenTextEqualTo('Sí').setBackground('#DCFCE7').setFontColor('#166534').setRanges([oR]).build());
+  rules.push(sh.newConditionalFormatRule().whenTextEqualTo('Revisar').setBackground('#FEF3C7').setFontColor('#92400E').setRanges([oR]).build());
+  sh.setConditionalFormatRules(rules);
+}
+function buildResumTab_(sh,students,classe,RCAPS,RNAMES,dateStr,detallName){
+  var n=students.length, dq="'"+detallName+"'", FR=5, LR=FR+n-1;
+  var kR=dq+'!K'+FR+':K'+LR, oRef=dq+'!O'+FR+':O'+LR;
+  var capCols={c1:'B',c3:'C',c5:'D',c4:'E',c2:'F',c6:'G',c7:'H'};
+  sh.getRange(1,1,1,12).merge().setValue('INFORME DE SEGUIMENT DE CAPACITATS CLAU — CLASSE '+classe)
+    .setBackground('#1E293B').setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(15).setHorizontalAlignment('center');
+  sh.getRange(2,1,1,12).merge().setValue("Data de l'informe: "+dateStr+" | Font: EAS CC | Anàlisi global del grup i per capacitat")
+    .setBackground('#1E293B').setFontColor('#E2E8F0').setFontSize(10);
+  sh.getRange(4,1,1,12).merge().setValue('Indicadors generals del grup').setBackground('#E2E8F0').setFontColor('#1E293B').setFontWeight('bold').setFontSize(11);
+  sh.getRange(5,1,1,12).setValues([['Alumnat avaluat','','Mitjana global cicle','','Mediana global cicle','','Nota mín.','Nota màx.','% Aprovats (≥ 5,0)','','Casos per revisar','']])
+    .setBackground('#F8FAFC').setFontColor('#64748B').setFontSize(9).setHorizontalAlignment('center');
+  sh.getRange('A5:B5').merge(); sh.getRange('C5:D5').merge(); sh.getRange('E5:F5').merge(); sh.getRange('I5:J5').merge(); sh.getRange('K5:L5').merge();
+  sh.getRange('A6:B6').merge().setFormula('=COUNT('+kR+')').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange('C6:D6').merge().setFormula('=IFERROR(AVERAGE('+kR+'),"")').setNumberFormat('0.00').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange('E6:F6').merge().setFormula('=IFERROR(MEDIAN('+kR+'),"")').setNumberFormat('0.00').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange('G6').setFormula('=IFERROR(MIN('+kR+'),"")').setNumberFormat('0.0').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange('H6').setFormula('=IFERROR(MAX('+kR+'),"")').setNumberFormat('0.0').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange('I6:J6').merge().setFormula('=IFERROR(COUNTIF('+kR+',">=5")/COUNT('+kR+'),0)').setNumberFormat('0.0%').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange('K6:L6').merge().setFormula('=COUNTIF('+oRef+',"Revisar")').setFontWeight('bold').setFontSize(16).setHorizontalAlignment('center');
+  sh.getRange(8,1,1,12).merge().setValue('Anàlisi per capacitat clau').setBackground('#E2E8F0').setFontColor('#1E293B').setFontWeight('bold').setFontSize(11);
+  sh.getRange(9,1,1,12).setValues([['Capacitat Clau','Avaluats','Pendents','% Cobertura','Mitjana Grup','Mediana','Mínima','Màxima','Excel·lent\n(9-10)','Notable\n(6-8)','Aprovat\n(3-5)','Insuficient\n(1-2)']])
+    .setBackground('#334155').setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center').setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
+  RCAPS.forEach(function(cap,ci){
+    var row=10+ci, col=capCols[cap], cR=dq+'!'+col+FR+':'+col+LR;
+    sh.getRange(row,1).setValue(RNAMES[cap]).setFontWeight('bold');
+    sh.getRange(row,2).setFormula('=COUNT('+cR+')').setHorizontalAlignment('center');
+    sh.getRange(row,3).setFormula('=COUNTBLANK('+cR+')').setHorizontalAlignment('center');
+    sh.getRange(row,4).setFormula('=IFERROR(B'+row+'/(B'+row+'+C'+row+'),0)').setNumberFormat('0.0%').setHorizontalAlignment('center');
+    sh.getRange(row,5).setFormula('=IF(B'+row+'=0,"—",IFERROR(AVERAGE('+cR+'),"—"))').setNumberFormat('0.00').setHorizontalAlignment('center');
+    sh.getRange(row,6).setFormula('=IF(B'+row+'=0,"—",IFERROR(MEDIAN('+cR+'),"—"))').setNumberFormat('0.00').setHorizontalAlignment('center');
+    sh.getRange(row,7).setFormula('=IF(B'+row+'=0,"—",IFERROR(MIN('+cR+'),"—"))').setHorizontalAlignment('center');
+    sh.getRange(row,8).setFormula('=IF(B'+row+'=0,"—",IFERROR(MAX('+cR+'),"—"))').setHorizontalAlignment('center');
+    sh.getRange(row,9).setFormula('=COUNTIFS('+cR+',">=9")').setBackground('#DCFCE7').setFontColor('#166534').setHorizontalAlignment('center');
+    sh.getRange(row,10).setFormula('=COUNTIFS('+cR+',">=6",'+cR+',"<9")').setBackground('#DBEAFE').setFontColor('#1E40AF').setHorizontalAlignment('center');
+    sh.getRange(row,11).setFormula('=COUNTIFS('+cR+',">=3",'+cR+',"<6")').setBackground('#FEF3C7').setFontColor('#92400E').setHorizontalAlignment('center');
+    sh.getRange(row,12).setFormula('=COUNTIFS('+cR+',">=1",'+cR+',"<3")').setBackground('#FEE2E2').setFontColor('#991B1B').setHorizontalAlignment('center');
+    sh.getRange(row,1,1,8).setBackground(ci%2===0?'#FFFFFF':'#F8FAFC').setFontSize(10);
+    sh.getRange(row,9,1,4).setFontSize(10);
+  });
+  sh.getRange(17,1,1,12).setBackground('#E2E8F0').setFontWeight('bold');
+  sh.getRange(17,1).setValue('MITJANA / TOTAL CAPACITATS');
+  sh.getRange(17,2).setFormula('=IFERROR(AVERAGE(B10:B16),"")').setHorizontalAlignment('center');
+  sh.getRange(17,3).setFormula('=IFERROR(AVERAGE(C10:C16),"")').setHorizontalAlignment('center');
+  sh.getRange(17,4).setFormula('=IFERROR(AVERAGE(D10:D16),"")').setNumberFormat('0.0%').setHorizontalAlignment('center');
+  sh.getRange(17,5).setFormula('=IFERROR(AVERAGEIF(E10:E16,"<>—"),"")').setNumberFormat('0.00').setHorizontalAlignment('center');
+  sh.getRange(17,6).setFormula('=IFERROR(AVERAGEIF(F10:F16,"<>—"),"")').setNumberFormat('0.00').setHorizontalAlignment('center');
+  sh.getRange(17,7).setFormula('=IFERROR(MINIFS(G10:G16,G10:G16,"<>—"),"")').setHorizontalAlignment('center');
+  sh.getRange(17,8).setFormula('=IFERROR(MAXIFS(H10:H16,H10:H16,"<>—"),"")').setHorizontalAlignment('center');
+  for(var c=9;c<=12;c++) sh.getRange(17,c).setFormula('=SUM('+columnToLetter_(c)+'10:'+columnToLetter_(c)+'16)').setHorizontalAlignment('center');
+  var low=RCAPS.filter(function(cap){var av=students.filter(function(s){return s.cells[cap]!=null;}).length; return av/n<0.5;})
+    .map(function(cap){var av=students.filter(function(s){return s.cells[cap]!=null;}).length; return RNAMES[cap]+' ('+av+'/'+n+' alumnes)';});
+  if(low.length) sh.getRange(18,1,1,12).merge().setValue('⚠ Cobertura baixa: '+low.join(', ')+'. Les seves estadístiques són poc representatives.').setFontColor('#92400E').setBackground('#FEF3C7').setWrap(true).setFontSize(10);
+  var b3=low.length?19:18, b3h=b3+1, totRow=b3h+5;
+  sh.getRange(b3,1,1,12).merge().setValue('Distribució nota global de cicle').setBackground('#E2E8F0').setFontColor('#1E293B').setFontWeight('bold').setFontSize(11);
+  sh.getRange(b3h,1,1,4).setValues([['Franja de qualificació','Rang','Núm. alumnes','% del grup']]).setBackground('#334155').setFontColor('#FFFFFF').setFontWeight('bold').setFontSize(10).setHorizontalAlignment('center');
+  [['Excel·lent','9,0 – 10,0','=COUNTIF('+kR+',">=9")','#DCFCE7','#166534'],
+   ['Notable','6,0 – 8,9','=COUNTIFS('+kR+',">=6",'+kR+',"<9")','#DBEAFE','#1E40AF'],
+   ['Aprovat','5,0 – 5,9','=COUNTIFS('+kR+',">=5",'+kR+',"<6")','#FEF3C7','#92400E'],
+   ['Insuficient','< 5,0','=COUNTIF('+kR+',"<5")','#FEE2E2','#991B1B']].forEach(function(b,bi){
+    var row=b3h+1+bi;
+    sh.getRange(row,1).setValue(b[0]).setBackground(b[3]).setFontColor(b[4]).setFontWeight('bold').setHorizontalAlignment('center');
+    sh.getRange(row,2).setValue(b[1]).setBackground(bi%2===0?'#FFFFFF':'#F8FAFC').setHorizontalAlignment('center');
+    sh.getRange(row,3).setFormula(b[2]).setBackground(bi%2===0?'#FFFFFF':'#F8FAFC').setHorizontalAlignment('center');
+    sh.getRange(row,4).setFormula('=IFERROR(C'+row+'/A6,0)').setNumberFormat('0.0%').setBackground(bi%2===0?'#FFFFFF':'#F8FAFC').setHorizontalAlignment('center');
+  });
+  sh.getRange(totRow,1).setValue('TOTAL GRUP AVALUAT').setFontWeight('bold').setBackground('#E2E8F0').setHorizontalAlignment('center');
+  sh.getRange(totRow,2).setValue('0,0 – 10,0').setBackground('#E2E8F0').setHorizontalAlignment('center');
+  sh.getRange(totRow,3).setFormula('=SUM(C'+(b3h+1)+':C'+(b3h+4)+')').setFontWeight('bold').setBackground('#E2E8F0').setHorizontalAlignment('center');
+  sh.getRange(totRow,4).setFormula('=SUM(D'+(b3h+1)+':D'+(b3h+4)+')').setNumberFormat('0.0%').setFontWeight('bold').setBackground('#E2E8F0').setHorizontalAlignment('center');
+  sh.setColumnWidth(1,180); sh.setColumnWidth(2,90); sh.setColumnWidth(3,90); sh.setColumnWidth(4,100);
+  sh.setColumnWidth(5,100); sh.setColumnWidth(6,90); sh.setColumnWidth(7,80); sh.setColumnWidth(8,80);
+  for(var cc=9;cc<=12;cc++) sh.setColumnWidth(cc,90);
+}
+function generateBuidatgeSheet_(p){
+  var classe=String(p.classe||'').trim(); if(!classe) throw new Error('Cal especificar una classe.');
+  var data=getClassGlobalResum_({classe:classe});
+  if(!data.students||!data.students.length) throw new Error('Cap alumne amb dades per exportar.');
+  var RCAPS=['c1','c3','c5','c4','c2','c6','c7'];
+  var RNAMES={c1:'Organització',c3:'Responsabilitat',c5:'Treball en equip',c4:'Autonomia',c2:'Iniciativa',c6:'Relacions personals',c7:'Resolució de problemes'};
+  var today=new Date();
+  var dateStr=today.getDate()+'/'+(today.getMonth()+1)+'/'+today.getFullYear();
+  var dateISO=Utilities.formatDate(today,Session.getScriptTimeZone(),'yyyy-MM-dd');
+  var ss=SpreadsheetApp.create('Seguiment CC - Classe '+classe+' - '+dateISO);
+  var detallName='Detall Alumnat (7 CC)', resumName='Resum Grup ('+classe+')';
+  var detallSh=ss.getActiveSheet(); detallSh.setName(detallName);
+  var resumSh=ss.insertSheet(resumName,0);
+  buildDetallTab_(detallSh,data.students,classe,RCAPS,RNAMES,dateStr);
+  buildResumTab_(resumSh,data.students,classe,RCAPS,RNAMES,dateStr,detallName);
+  DriveApp.getFileById(ss.getId()).setSharing(DriveApp.Access.ANYONE_WITH_LINK,DriveApp.Permission.EDIT);
+  return ss.getUrl();
 }
 
