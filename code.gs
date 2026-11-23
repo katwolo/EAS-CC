@@ -137,6 +137,10 @@ function handleRequest(action, payload) {
       case 'listCatalogActivities': return { ok:true, activities: listCatalogActivities_() };
       case 'saveCatalogActivity':   return { ok:true, result: saveCatalogActivity_(payload) };
       case 'deleteCatalogActivity': return { ok:true, deleted: deleteCatalogActivity_(payload) };
+      case 'getPesos':              return { ok:true, pesos: readPesos_() };
+      case 'getNotesConfig':        return { ok:true, notes: readNotesConfig_() };
+      case 'saveNotesConfig':       return { ok:true, done: saveNotesConfig_(payload) };
+      case 'savePesos':             return { ok:true, done: savePesos_(payload) };
       default: return { ok:false, error:'Acció desconeguda: ' + action };
     }
   } catch (err) { return { ok:false, error:String(err && err.message ? err.message : err) }; }
@@ -760,6 +764,56 @@ function weightedNota_(cells, pesos){
     num+=v*w; den+=w;
   });
   return den>0?Math.round(num/den*10)/10:null;
+}
+
+/* ============== NOTES CONFIG ============== */
+function readNotesConfig_(){
+  var sh=getSS_().getSheetByName('Pesos');
+  if(!sh) return getDefaultNotesConfig_();
+  var lastRow=sh.getLastRow();
+  if(lastRow<10) return getDefaultNotesConfig_();
+  var v=sh.getRange(9,1,Math.min(6,lastRow-8),2).getValues();
+  if(String(v[0][0]||'').trim().toLowerCase()!=='nota') return getDefaultNotesConfig_();
+  var notes=[];
+  for(var i=1;i<v.length;i++){
+    var val=String(v[i][0]||'').trim(), nom=String(v[i][1]||'').trim();
+    if(!val) break;
+    notes.push({val:val,nom:nom});
+  }
+  return notes.length?notes:getDefaultNotesConfig_();
+}
+function getDefaultNotesConfig_(){
+  return [{val:'1',nom:'Iniciació'},{val:'4',nom:'En procés'},{val:'7',nom:'Assolit'},{val:'10',nom:'Excel·lent'},{val:'NP',nom:'No presentat'}];
+}
+function saveNotesConfig_(p){
+  var notes=p.notes||[];
+  if(!notes.length) throw new Error('Cal especificar les notes.');
+  var sh=getSS_().getSheetByName('Pesos');
+  if(!sh) throw new Error('No s\'ha trobat el full "Pesos".');
+  sh.getRange(9,1,1,2).setValues([['nota','nom']]);
+  notes.slice(0,5).forEach(function(n,i){
+    sh.getRange(10+i,1,1,2).setValues([[String(n.val||''),String(n.nom||'')]]);
+  });
+  SpreadsheetApp.flush();
+  return true;
+}
+function savePesos_(p){
+  var curs=String(p.curs||'').trim();
+  var pesos=p.pesos||{};
+  var sh=getSS_().getSheetByName('Pesos');
+  if(!sh) throw new Error('No s\'ha trobat el full "Pesos".');
+  var v=sh.getDataRange().getValues();
+  var found=[];
+  for(var i=0;i<v.length-1;i++){
+    if(String(v[i][0]||'').trim().toLowerCase()==='c1') found.push(i);
+  }
+  var idx=curs==='2n'?found[1]:found[0];
+  if(idx===undefined||idx===null) throw new Error('No s\'ha trobat la fila de pesos.');
+  var CAPS_ARR=['c1','c2','c3','c4','c5','c6','c7'];
+  var vals=CAPS_ARR.map(function(cap){return Number(pesos[cap])||0;});
+  sh.getRange(idx+2,1,1,7).setValues([vals]);
+  SpreadsheetApp.flush();
+  return true;
 }
 
 /* ============== RESUM (lectura per al web) ============== */
